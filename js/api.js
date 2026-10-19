@@ -2,20 +2,25 @@
 
 const espera = (ms) => new Promise(r => setTimeout(r, ms));
 
-export function crearApi({ url, anonKey }, fetcher = globalThis.fetch?.bind(globalThis)) {
+export function crearApi({ url, anonKey, timeoutMs = 9000 }, fetcher = globalThis.fetch?.bind(globalThis)) {
   async function rpc(nombre, args) {
-    let r;
+    // Con mal wifi una llamada puede quedar colgada un minuto: se corta y se trata como «sin conexión».
+    const corte = new AbortController();
+    const reloj = setTimeout(() => corte.abort(), timeoutMs);
+    let r, cuerpo = null;
     try {
       r = await fetcher(`${url}/rest/v1/rpc/${nombre}`, {
         method: 'POST',
         headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(args),
+        signal: corte.signal,
       });
+      try { cuerpo = await r.json(); } catch {}
     } catch {
       return { data: null, error: 'red' };
+    } finally {
+      clearTimeout(reloj);
     }
-    let cuerpo = null;
-    try { cuerpo = await r.json(); } catch {}
     if (!r.ok) return { data: null, error: (cuerpo && cuerpo.message) || (r.status >= 500 ? 'red' : 'error') };
     if (cuerpo && typeof cuerpo === 'object' && typeof cuerpo.error === 'string') return { data: null, error: cuerpo.error };
     return { data: cuerpo, error: null };

@@ -70,14 +70,12 @@ test('nombre repetido sin importar mayúsculas; nombre vacío o largo', async ()
 });
 
 test('equipo de otra sede no existe para mí', async () => {
-  const a = await persona(), sdP = await persona('Otra', 'Sede', 'sd');
-  psql(`update sedes set equipos_estado = 'abierta' where id = 'sd'`);
+  const a = await persona(), sdP = await persona('Otra', 'Sede', 'prueba2');
+  psql(`update sedes set equipos_estado = 'abierta' where id = 'prueba2'`);
   try {
     const { data: eq } = await crear(sdP.token, `SD ${Date.now()}`);
     assert.equal((await unirse(a.token, eq.id)).error, 'equipo_no_existe');
   } finally {
-    psql(`update personas set equipo_id = null where id = '${sdP.persona.id}';
-          delete from equipos where sede = 'sd'; delete from personas where id = '${sdP.persona.id}';
-          update sedes set equipos_estado = 'cerrada' where id = 'sd'`);
+    resetPrueba();
   }
 });

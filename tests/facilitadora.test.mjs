@@ -80,3 +80,39 @@ test('f_registrar acepta otro dominio; f_borrar_persona borra', async () => {
   await rpc('f_borrar_persona', { p_token: f.token, p_persona: data.persona.id });
   assert.equal(psql(`select count(*) from personas where id = '${data.persona.id}'`), '0');
 });
+
+test('I1: mostrar resultados de otra actividad cierra la que estaba abierta', async () => {
+  const f = await facilitadora();
+  const act = (id, e) => rpc('f_actividad', { p_token: f.token, p_sede: 'prueba', p_actividad: id, p_estado: e });
+  await act('a1', 'abierta');
+  await act('a3', 'abierta');
+  await act('a1', 'resultados');
+  assert.equal(psql(`select count(*) from estado_actividad where sede = 'prueba' and estado <> 'cerrada'`), '1');
+  const { data } = await rpc('pantalla', { p_sede: 'prueba' });
+  assert.equal(data.actividad.id, 'a1');
+  assert.equal(data.actividad.estado, 'resultados');
+});
+
+test('I5: abrir el armado desde Equipos abre también la actividad de equipos', async () => {
+  const f = await facilitadora(), p = await persona();
+  await rpc('f_equipos', { p_token: f.token, p_sede: 'prueba', p_estado: 'abierta' });
+  const { data } = await rpc('estado', { p_token: p.token });
+  assert.equal(data.actividad.tipo, 'equipos');
+  assert.equal(data.equipos.estado, 'abierta');
+  await rpc('f_equipos', { p_token: f.token, p_sede: 'prueba', p_estado: 'final' });
+  assert.equal(psql(`select estado from estado_actividad where sede = 'prueba' and actividad_id = 'a9'`), 'cerrada');
+});
+
+test('I7: la facilitadora no queda bloqueada por intentos fallidos', async () => {
+  const c = correo();
+  const { data: p } = await rpc('registrar', { p_sede: 'prueba', p_nombre: 'Sole', p_apellido: 'F', p_correo: c, p_pin: '5555' });
+  psql(`update personas set es_facilitadora = true where id = '${p.persona.id}'`);
+  for (let i = 0; i < 6; i++) await rpc('entrar', { p_sede: 'prueba', p_correo: c, p_pin: '0000' });
+  assert.equal((await rpc('entrar', { p_sede: 'prueba', p_correo: c, p_pin: '5555' })).error, null);
+});
+
+test('I7: f_reset_pin acepta una clave larga solo para la facilitadora', async () => {
+  const f = await facilitadora(), p = await persona();
+  assert.equal((await rpc('f_reset_pin', { p_token: f.token, p_persona: f.persona.id, p_pin: 'una frase larga 2026' })).error, null);
+  assert.equal((await rpc('f_reset_pin', { p_token: f.token, p_persona: p.persona.id, p_pin: 'una frase larga 2026' })).error, 'pin_invalido');
+});

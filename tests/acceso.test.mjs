@@ -38,8 +38,8 @@ test('correo repetido en la misma sede', async () => {
 test('mismo correo en otra sede sí se permite', async () => {
   const c = correo();
   assert.equal((await reg({ p_correo: c })).error, null);
-  const otra = await reg({ p_correo: c, p_sede: 'sd' });
-  psql(`delete from personas where sede = 'sd' and correo = '${c}'`);
+  const otra = await reg({ p_correo: c, p_sede: 'prueba2' });
+  psql(`delete from personas where sede = 'prueba2' and correo = '${c}'`);
   assert.equal(otra.error, null);
 });
 

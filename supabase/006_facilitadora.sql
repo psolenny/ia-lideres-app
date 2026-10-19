@@ -51,8 +51,11 @@ begin
   select tipo into v_tipo from actividades where id = p_actividad;
   if not found then raise exception 'actividad_no_existe'; end if;
 
-  if p_estado = 'abierta' then
-    update estado_actividad set estado = 'cerrada'
+  -- Bloquea la sede: dos toques seguidos no pueden dejar dos actividades vivas.
+  perform 1 from sedes where id = p_sede for update;
+  if p_estado <> 'cerrada' then
+    -- Solo una actividad no cerrada por sede.
+    update estado_actividad set estado = 'cerrada', cambiado_en = now()
       where sede = p_sede and actividad_id <> p_actividad and estado <> 'cerrada';
     -- Si la que se cierra era la de equipos, el armado queda en final.
     if exists (select 1 from sedes where id = p_sede and equipos_estado = 'abierta') and v_tipo <> 'equipos' then
@@ -60,9 +63,9 @@ begin
     end if;
   end if;
 
-  insert into estado_actividad (sede, actividad_id, estado, abierta_en)
-    values (p_sede, p_actividad, p_estado, case when p_estado = 'abierta' then now() end)
-  on conflict (sede, actividad_id) do update set estado = excluded.estado,
+  insert into estado_actividad (sede, actividad_id, estado, abierta_en, cambiado_en)
+    values (p_sede, p_actividad, p_estado, case when p_estado = 'abierta' then now() end, now())
+  on conflict (sede, actividad_id) do update set estado = excluded.estado, cambiado_en = now(),
     abierta_en = case when excluded.estado = 'abierta' then now() else estado_actividad.abierta_en end;
 
   if v_tipo = 'equipos' then
@@ -71,12 +74,20 @@ begin
   return json_build_object('ok', true);
 end $$;
 
+-- Abrir o cerrar el armado mueve también la actividad de equipos, para que celulares y pantalla lo muestren.
 create or replace function f_equipos(p_token uuid, p_sede text, p_estado text) returns json
 language plpgsql security definer set search_path = public as $$
+declare v_act text;
 begin
   perform facilitadora(p_token);
   perform exigir_sede(p_sede);
   if p_estado not in ('cerrada', 'abierta', 'final') then raise exception 'estado_invalido'; end if;
+  select id into v_act from actividades where tipo = 'equipos' order by dia, orden limit 1;
+  if p_estado = 'abierta' and v_act is not null then
+    return f_actividad(p_token, p_sede, v_act, 'abierta');
+  end if;
+  update estado_actividad set estado = 'cerrada', cambiado_en = now()
+    where sede = p_sede and actividad_id = v_act and estado <> 'cerrada';
   update sedes set equipos_estado = p_estado where id = p_sede;
   return json_build_object('ok', true);
 end $$;
@@ -120,7 +131,10 @@ create or replace function f_reset_pin(p_token uuid, p_persona uuid, p_pin text)
 language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform facilitadora(p_token);
-  if coalesce(p_pin, '') !~ '^[0-9]{4}$' then raise exception 'pin_invalido'; end if;
+  -- Participantes: PIN de 4 números. Facilitadora: clave de al menos 8 caracteres.
+  if exists (select 1 from personas where id = p_persona and es_facilitadora) then
+    if length(coalesce(p_pin, '')) < 8 then raise exception 'pin_invalido'; end if;
+  elsif coalesce(p_pin, '') !~ '^[0-9]{4}$' then raise exception 'pin_invalido'; end if;
   update personas set pin_hash = crypt(p_pin, gen_salt('bf')), intentos = 0, bloqueado_hasta = null where id = p_persona;
   if not found then raise exception 'persona_no_existe'; end if;
   return json_build_object('ok', true);

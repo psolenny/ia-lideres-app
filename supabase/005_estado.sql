@@ -62,7 +62,7 @@ begin
   end if;
 
   select ea.* into e from estado_actividad ea join actividades ac on ac.id = ea.actividad_id
-    where ea.sede = p.sede and ea.estado <> 'cerrada' order by ea.abierta_en desc nulls last limit 1;
+    where ea.sede = p.sede and ea.estado <> 'cerrada' order by ea.cambiado_en desc nulls last, ea.abierta_en desc nulls last limit 1;
   if found then
     select * into a from actividades where id = e.actividad_id;
     select * into r from respuestas where persona_id = p.id and actividad_id = a.id;
@@ -94,7 +94,7 @@ begin
   if not exists (select 1 from sedes where id = p_sede) then raise exception 'sede_invalida'; end if;
 
   select ea.* into e from estado_actividad ea
-    where ea.sede = p_sede and ea.estado <> 'cerrada' order by ea.abierta_en desc nulls last limit 1;
+    where ea.sede = p_sede and ea.estado <> 'cerrada' order by ea.cambiado_en desc nulls last, ea.abierta_en desc nulls last limit 1;
   if found then
     select * into a from actividades where id = e.actividad_id;
     select count(*) into v_n from respuestas where sede = p_sede and actividad_id = a.id;

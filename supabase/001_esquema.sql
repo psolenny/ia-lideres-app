@@ -62,6 +62,8 @@ create table if not exists estado_actividad (
   abierta_en timestamptz,
   primary key (sede, actividad_id)
 );
+-- Momento del último cambio de estado: la actividad cambiada más reciente es la que se muestra.
+alter table estado_actividad add column if not exists cambiado_en timestamptz;
 
 create table if not exists respuestas (
   id bigserial primary key,

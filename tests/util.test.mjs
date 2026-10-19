@@ -70,3 +70,22 @@ test('api: {error} en el cuerpo y mensaje de excepción se vuelven código', asy
   const api2 = crearApi({ url: 'x', anonKey: 'k' }, async () => ({ ok: false, status: 400, json: async () => ({ message: 'equipo_lleno' }) }));
   assert.equal((await api2.unirseEquipo('t', 'e')).error, 'equipo_lleno');
 });
+
+test('I2: una llamada colgada se corta y devuelve "red"', { timeout: 3000 }, async () => {
+  // Sin señal de corte, la llamada queda colgada para siempre (como con mal wifi).
+  const colgada = (url, opts) => new Promise((_, rechazar) => opts?.signal?.addEventListener('abort', () => rechazar(new Error('abort'))));
+  const api = crearApi({ url: 'x', anonKey: 'k', timeoutMs: 50 }, colgada);
+  const t0 = Date.now();
+  assert.equal((await api.estado('t')).error, 'red');
+  assert.ok(Date.now() - t0 < 1000);
+});
+
+test('I6: sedeDeURL funciona sin Object.hasOwn (navegadores viejos)', () => {
+  const original = Object.hasOwn;
+  try {
+    delete Object.hasOwn;
+    assert.equal(sedeDeURL('?sede=santiago'), 'santiago');
+  } finally {
+    Object.hasOwn = original;
+  }
+});

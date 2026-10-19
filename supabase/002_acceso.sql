@@ -50,12 +50,15 @@ declare p personas; v_token uuid;
 begin
   select * into p from personas where sede = p_sede and correo = lower(trim(coalesce(p_correo, ''))) for update;
   if not found then raise exception 'credenciales'; end if;
-  if p.bloqueado_hasta is not null and p.bloqueado_hasta > now() then raise exception 'bloqueado'; end if;
+  if p.bloqueado_hasta is not null and p.bloqueado_hasta > now() and not p.es_facilitadora then raise exception 'bloqueado'; end if;
   if p.pin_hash <> crypt(coalesce(p_pin, ''), p.pin_hash) then
     -- Un raise desharía este update, así que el fallo se devuelve como {error} en vez de excepción.
-    update personas set intentos = intentos + 1,
-      bloqueado_hasta = case when intentos + 1 >= 5 then now() + interval '5 minutes' end
-      where id = p.id;
+    -- La facilitadora no se bloquea (nadie puede dejarla fuera); su clave es larga, no un PIN.
+    if not p.es_facilitadora then
+      update personas set intentos = intentos + 1,
+        bloqueado_hasta = case when intentos + 1 >= 5 then now() + interval '5 minutes' end
+        where id = p.id;
+    end if;
     return json_build_object('error', 'credenciales');
   end if;
   update personas set intentos = 0, bloqueado_hasta = null where id = p.id;

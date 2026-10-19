@@ -78,14 +78,10 @@ test('responder dos veces devuelve lo mismo y no duplica', async () => {
   assert.equal(psql(`select count(*) from respuestas where persona_id = '${p.persona.id}'`), '1');
 });
 
-test('actividad abierta solo en sd no se puede responder desde prueba', async () => {
+test('actividad abierta solo en otra sede no se puede responder', async () => {
   const { token } = await persona();
-  abrir('a1', 'sd');
-  try {
-    assert.equal((await responder(token, 'a1', 0)).error, 'actividad_cerrada');
-  } finally {
-    psql(`update estado_actividad set estado = 'cerrada', abierta_en = null where sede = 'sd'`);
-  }
+  abrir('a1', 'prueba2');
+  assert.equal((await responder(token, 'a1', 0)).error, 'actividad_cerrada');
 });
 
 test('token inválido', async () => {

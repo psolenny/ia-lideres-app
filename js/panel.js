@@ -30,7 +30,7 @@ function vistaEntrada(error = '') {
     <form id="f">
       <label class="campo"><span>Sede</span><select name="sede" style="width:100%;padding:12px">${Object.entries(SEDES).map(([k, v]) => `<option value="${k}" ${k === sede ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
       <label class="campo"><span>Correo</span><input name="correo" type="email" autocapitalize="off" required></label>
-      <label class="campo"><span>PIN</span><input name="pin" type="password" inputmode="numeric" maxlength="4" required></label>
+      <label class="campo"><span>Clave</span><input name="pin" type="password" autocomplete="current-password" required></label>
       <p class="error" id="err">${h(error)}</p>
       <button class="btn">Entrar</button>
     </form></div>`;
@@ -147,7 +147,7 @@ function enlazar() {
   $p.querySelectorAll('[data-tab]').forEach(b => (b.onclick = () => { tab = b.dataset.tab; render(); }));
   $p.querySelectorAll('[data-act]').forEach(b => (b.onclick = () => hacer(api.f.actividad(token, sede, b.dataset.act, b.dataset.estado))));
   $p.querySelectorAll('[data-equipos]').forEach(b => (b.onclick = () => hacer(api.f.equipos(token, sede, b.dataset.equipos))));
-  $p.querySelectorAll('[data-mover]').forEach(s => (s.onchange = () => hacer(api.f.mover(token, s.dataset.mover, s.value || null), 'Movida')));
+  $p.querySelectorAll('[data-mover]').forEach(s => (s.onchange = () => { s.blur(); hacer(api.f.mover(token, s.dataset.mover, s.value || null), 'Movida'); }));
   $p.querySelectorAll('[data-excepcion]').forEach(b => (b.onclick = () => hacer(api.f.excepcion(token, b.dataset.excepcion, b.dataset.activa === 'true'))));
   const fc = document.getElementById('fcrear');
   if (fc) fc.onsubmit = (ev) => { ev.preventDefault(); const n = ev.target.n.value; ev.target.n.value = ''; hacer(api.f.crearEquipo(token, sede, n), 'Equipo creado'); };

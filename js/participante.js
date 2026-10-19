@@ -157,7 +157,7 @@ function render(forzar = false) {
   if (!forzar && firma === ultimaFirma) return;
   // No pisar lo que la persona está escribiendo.
   const activo = document.activeElement;
-  if (!forzar && activo && activo.tagName === 'INPUT' && $app.contains(activo) && activo.value) return;
+  if (!forzar && activo && activo.tagName === 'INPUT' && $app.contains(activo)) return;
   ultimaFirma = firma;
   $app.innerHTML = cabecera() + vista;
   $tabs.hidden = false;

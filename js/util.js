@@ -23,7 +23,7 @@ export function crearGuardado(storage = globalThis.localStorage) {
 
 export function sedeDeURL(search) {
   const s = new URLSearchParams(search || '').get('sede');
-  return s && Object.hasOwn(SEDES, s) ? s : null;
+  return s && Object.prototype.hasOwnProperty.call(SEDES, s) ? s : null;
 }
 
 export function normalizarCorreo(c) {
