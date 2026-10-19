@@ -17,11 +17,17 @@ const env = Object.fromEntries(readFileSync(new URL('../.env.local', import.meta
 
 async function rpc(nombre, args) {
   if (args.p_sede && args.p_sede !== SEDE) throw new Error('solo_demo');
-  const r = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/${nombre}`, {
-    method: 'POST',
-    headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${env.SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(args),
-  });
+  let r;
+  try {
+    r = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/${nombre}`, {
+      method: 'POST',
+      headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: `Bearer ${env.SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+      signal: AbortSignal.timeout(9000),
+    });
+  } catch {
+    return { error: 'red' }; // corte de internet: se reintenta en el siguiente turno
+  }
   const c = await r.json().catch(() => null);
   if (!r.ok) return { error: c?.message || r.status };
   if (c && typeof c.error === 'string') return { error: c.error };
