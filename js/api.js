@@ -1,0 +1,72 @@
+// Cliente de las funciones RPC. Cada método devuelve { data, error } con error = código o null.
+
+const espera = (ms) => new Promise(r => setTimeout(r, ms));
+
+export function crearApi({ url, anonKey }, fetcher = globalThis.fetch?.bind(globalThis)) {
+  async function rpc(nombre, args) {
+    let r;
+    try {
+      r = await fetcher(`${url}/rest/v1/rpc/${nombre}`, {
+        method: 'POST',
+        headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(args),
+      });
+    } catch {
+      return { data: null, error: 'red' };
+    }
+    let cuerpo = null;
+    try { cuerpo = await r.json(); } catch {}
+    if (!r.ok) return { data: null, error: (cuerpo && cuerpo.message) || (r.status >= 500 ? 'red' : 'error') };
+    if (cuerpo && typeof cuerpo === 'object' && typeof cuerpo.error === 'string') return { data: null, error: cuerpo.error };
+    return { data: cuerpo, error: null };
+  }
+
+  async function conReintento(nombre, args, intentos = 3) {
+    let res;
+    for (let i = 0; i < intentos; i++) {
+      res = await rpc(nombre, args);
+      if (res.error !== 'red') return res;
+      await espera(1000);
+    }
+    return res;
+  }
+
+  return {
+    rpc,
+    registrar: (sede, nombre, apellido, correo, pin) => rpc('registrar', { p_sede: sede, p_nombre: nombre, p_apellido: apellido, p_correo: correo, p_pin: pin }),
+    entrar: (sede, correo, pin) => rpc('entrar', { p_sede: sede, p_correo: correo, p_pin: pin }),
+    estado: (token) => rpc('estado', { p_token: token }),
+    // Idempotente en el servidor: se puede reintentar sin riesgo de puntos dobles.
+    responder: (token, actividad, opcion = null, texto = null) => conReintento('responder', { p_token: token, p_actividad: actividad, p_opcion: opcion, p_texto: texto }),
+    crearEquipo: (token, nombre) => rpc('crear_equipo', { p_token: token, p_nombre: nombre }),
+    unirseEquipo: (token, equipo) => rpc('unirse_equipo', { p_token: token, p_equipo: equipo }),
+    salirEquipo: (token) => rpc('salir_equipo', { p_token: token }),
+    pantalla: (sede) => rpc('pantalla', { p_sede: sede }),
+    f: {
+      estado: (token, sede) => rpc('f_estado', { p_token: token, p_sede: sede }),
+      actividad: (token, sede, actividad, estado) => rpc('f_actividad', { p_token: token, p_sede: sede, p_actividad: actividad, p_estado: estado }),
+      equipos: (token, sede, estado) => rpc('f_equipos', { p_token: token, p_sede: sede, p_estado: estado }),
+      mover: (token, persona, equipo) => rpc('f_mover', { p_token: token, p_persona: persona, p_equipo: equipo }),
+      excepcion: (token, equipo, activa) => rpc('f_excepcion', { p_token: token, p_equipo: equipo, p_activa: activa }),
+      crearEquipo: (token, sede, nombre) => rpc('f_crear_equipo', { p_token: token, p_sede: sede, p_nombre: nombre }),
+      resetPin: (token, persona, pin) => rpc('f_reset_pin', { p_token: token, p_persona: persona, p_pin: pin }),
+      registrar: (token, sede, nombre, apellido, correo, pin) => rpc('f_registrar', { p_token: token, p_sede: sede, p_nombre: nombre, p_apellido: apellido, p_correo: correo, p_pin: pin }),
+      borrarPersona: (token, persona) => rpc('f_borrar_persona', { p_token: token, p_persona: persona }),
+    },
+  };
+}
+
+// Consulta periódica que se pausa con la pestaña oculta.
+export function cadaTanto(fn, ms) {
+  let timer = null, corriendo = false;
+  async function tick() {
+    if (corriendo) return;
+    corriendo = true;
+    try { await fn(); } finally { corriendo = false; }
+  }
+  function arrancar() { if (!timer) { tick(); timer = setInterval(tick, ms); } }
+  function parar() { clearInterval(timer); timer = null; }
+  document.addEventListener('visibilitychange', () => (document.hidden ? parar() : arrancar()));
+  arrancar();
+  return { ahora: tick, parar };
+}
