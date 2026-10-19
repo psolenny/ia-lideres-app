@@ -1,6 +1,6 @@
 // Funciones puras compartidas por las tres páginas. Sin dependencias.
 
-export const SEDES = { santiago: 'Santiago', sd: 'Santo Domingo', prueba: 'Prueba' };
+export const SEDES = { santiago: 'Santiago', sd: 'Santo Domingo', prueba: 'Prueba', demo: 'Demo' };
 
 // Guarda en localStorage si se puede; si el navegador lo bloquea, en memoria.
 export function crearGuardado(storage = globalThis.localStorage) {

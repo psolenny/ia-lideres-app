@@ -2,7 +2,7 @@
 -- Se puede volver a ejecutar: actualiza el contenido sin borrar respuestas.
 
 insert into sedes (id, nombre) values
-  ('santiago', 'Santiago'), ('sd', 'Santo Domingo'), ('prueba', 'Prueba'), ('prueba2', 'Prueba 2')
+  ('santiago', 'Santiago'), ('sd', 'Santo Domingo'), ('prueba', 'Prueba'), ('prueba2', 'Prueba 2'), ('demo', 'Demo')
 on conflict (id) do update set nombre = excluded.nombre;
 
 insert into actividades (id, dia, orden, tipo, lamina, pregunta, opciones, correcta, explicacion, puntos) values

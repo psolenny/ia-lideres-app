@@ -28,6 +28,7 @@ test('sedeDeURL', () => {
   assert.equal(sedeDeURL('?sede=sd'), 'sd');
   assert.equal(sedeDeURL('?sede=santiago&x=1'), 'santiago');
   assert.equal(sedeDeURL('?sede=prueba'), 'prueba');
+  assert.equal(sedeDeURL('?sede=demo'), 'demo');
   assert.equal(sedeDeURL('?sede=xx'), null);
   assert.equal(sedeDeURL(''), null);
 });

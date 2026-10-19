@@ -11,7 +11,7 @@ const env = Object.fromEntries(
 export const { SUPABASE_URL, SUPABASE_ANON_KEY, DATABASE_URL } = env;
 
 export async function rpc(nombre, args = {}) {
-  if (['santiago', 'sd'].includes(args.p_sede)) throw new Error('prueba_toca_sede_real');
+  if (['santiago', 'sd', 'demo'].includes(args.p_sede)) throw new Error('prueba_toca_sede_real');
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${nombre}`, {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
@@ -33,7 +33,7 @@ export async function rest(ruta) {
 
 export function psql(sql) {
   // Las pruebas nunca tocan sedes reales.
-  if (/'(santiago|sd)'/.test(sql)) throw new Error('prueba_toca_sede_real');
+  if (/'(santiago|sd|demo)'/.test(sql)) throw new Error('prueba_toca_sede_real');
   try {
     return execFileSync('psql', [DATABASE_URL, '-At', '-v', 'ON_ERROR_STOP=1', '-c', sql], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   } catch (e) {
