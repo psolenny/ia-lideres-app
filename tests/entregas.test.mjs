@@ -154,3 +154,11 @@ test('foto demasiado grande se rechaza', async () => {
   const enorme = 'data:image/jpeg;base64,' + 'A'.repeat(1_200_000);
   assert.equal((await entregar(a.token, 'h1', { foto: enorme })).error, 'foto_invalida');
 });
+
+test('los puntos del check-in se ven en el encabezado de la persona', async () => {
+  const a = await persona();
+  await act('c1');
+  await entregar(a.token, 'c1', { texto: 'Resumí el informe de ventas', texto2: 'Preparé la agenda del comité' });
+  const { data } = await rpc('estado', { p_token: a.token });
+  assert.equal(data.yo.puntos, 50);
+});

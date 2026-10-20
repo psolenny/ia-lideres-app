@@ -78,7 +78,10 @@ declare
   a actividades; e estado_actividad; r respuestas;
   v_actividad json; v_equipo json; v_puntos int;
 begin
-  select coalesce(sum(puntos), 0)::int into v_puntos from respuestas where persona_id = p.id;
+  -- Mismo cálculo que el ranking (respuestas + check-in).
+  v_puntos := coalesce((select sum(rr.puntos) from respuestas rr where rr.persona_id = p.id), 0)
+    + coalesce((select sum(a2.puntos) from entregas en join actividades a2 on a2.id = en.actividad_id
+                where en.persona_id = p.id and en.equipo_id is null and en.estado = 'aprobado'), 0);
 
   if p.equipo_id is not null then
     select json_build_object('id', eq.id, 'nombre', eq.nombre,
