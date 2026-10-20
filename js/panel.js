@@ -13,6 +13,10 @@ let token = guardado.get(LLAVE);
 let tab = 'vivo';
 let st = null;
 let busqueda = '';
+let entregas = [];
+let filtroEntregas = 'pendiente';
+const fotos = new Map();   // fotos ya descargadas, por entrega
+const EN_VIVO = ['encuesta', 'nube', 'quiz', 'equipos'];
 let sondeo = null;
 
 function toast(txt) {
@@ -59,7 +63,7 @@ function barra() {
     <select id="sede">${Object.entries(SEDES).map(([k, v]) => `<option value="${k}" ${k === sede ? 'selected' : ''}>${v}</option>`).join('')}</select>
     <a class="mini" href="${base}pantalla.html?sede=${sede}" target="_blank" rel="noopener">Abrir pantalla ↗</a>
     <div class="tabs" role="tablist">
-      ${[['vivo', 'En vivo'], ['equipos', 'Equipos'], ['personas', `Personas (${st ? st.personas.filter(x => !x.es_facilitadora).length : 0})`]]
+      ${[['vivo', 'En vivo'], ['equipos', 'Equipos'], ['entregas', `Entregas${pendientes() ? ` (${pendientes()} por revisar)` : ''}`], ['personas', `Personas (${st ? st.personas.filter(x => !x.es_facilitadora).length : 0})`]]
         .map(([k, v]) => `<button data-tab="${k}" aria-selected="${tab === k}">${v}</button>`).join('')}
     </div>
   </div>`;
@@ -72,10 +76,10 @@ function vistaVivo() {
       <td><small>${h(a.lamina || '')}</small></td>
       <td><b>${h(a.tipo)}</b> · ${h(a.pregunta)}</td>
       <td><span class="estado ${a.estado}">${a.estado}</span></td>
-      <td>${a.tipo === 'equipos' ? '' : a.respuestas}</td>
+      <td>${a.tipo === 'equipos' ? '' : a.respuestas}${a.pendientes ? ` <span class="estado abierta">${a.pendientes} por revisar</span>` : ''}</td>
       <td class="acciones">
         <button class="primario" data-act="${a.id}" data-estado="abierta" ${a.estado === 'abierta' ? 'disabled' : ''}>Abrir</button>
-        ${a.tipo === 'equipos' ? '' : `<button data-act="${a.id}" data-estado="resultados" ${a.estado === 'resultados' ? 'disabled' : ''}>Resultados</button>`}
+        ${a.tipo === 'equipos' || !EN_VIVO.includes(a.tipo) ? '' : `<button data-act="${a.id}" data-estado="resultados" ${a.estado === 'resultados' ? 'disabled' : ''}>Resultados</button>`}
         <button data-act="${a.id}" data-estado="cerrada" ${a.estado === 'cerrada' ? 'disabled' : ''}>Cerrar</button>
       </td></tr>`).join('')}
   </tbody></table>`;
@@ -107,6 +111,28 @@ function vistaEquipos() {
     </div>`;
 }
 
+function pendientes() {
+  return entregas.filter(e => e.estado === 'pendiente' && e.tipo !== 'checkin').length;
+}
+
+const TIPOS = { hito: 'Hito con foto', texto: 'Texto de equipo', checkin: 'Check-in' };
+
+function vistaEntregas() {
+  const lista = entregas.filter(e => filtroEntregas === 'todas' || (filtroEntregas === 'checkin' ? e.tipo === 'checkin' : (e.estado === filtroEntregas && e.tipo !== 'checkin')));
+  const filtros = [['pendiente', 'Por revisar'], ['aprobado', 'Aprobadas'], ['rechazado', 'Rechazadas'], ['checkin', 'Check-ins'], ['todas', 'Todas']];
+  return `<div class="tabs" style="margin-bottom:14px">${filtros.map(([k, v]) => `<button data-filtro="${k}" aria-selected="${filtroEntregas === k}">${v}</button>`).join('')}</div>
+    ${lista.length ? lista.map(e => `<div class="entrega ${e.estado === 'pendiente' && e.tipo !== 'checkin' ? 'pendiente' : ''}">
+      <div class="cab"><b>${h(e.equipo || e.subio)}</b><span><small>${h(TIPOS[e.tipo] || e.tipo)}</small> <span class="estado ${e.estado === 'aprobado' ? 'resultados' : e.estado === 'rechazado' ? 'abierta' : 'cerrada'}">${e.estado}</span></span></div>
+      <p class="sub" style="margin:4px 0">${h(e.actividad)} · subió ${h(e.subio)}</p>
+      ${e.tiene_foto ? (fotos.has(e.id) ? `<img class="foto-rev" src="${h(fotos.get(e.id))}" alt="Foto de ${h(e.equipo || e.subio)}">` : `<button class="mini" data-ver="${e.id}">Ver foto</button>`) : ''}
+      ${e.texto ? `<p class="cita">${h(e.texto)}</p>` : ''}${e.texto2 ? `<p class="cita">${h(e.texto2)}</p>` : ''}
+      ${e.motivo ? `<p class="motivo">Motivo: ${h(e.motivo)}</p>` : ''}
+      ${e.tipo === 'checkin' ? '' : `<div class="acciones" style="margin-top:8px">
+        <button class="primario" data-revisar="${e.id}" data-estado="aprobado" ${e.estado === 'aprobado' ? 'disabled' : ''}>Aprobar</button>
+        <button data-revisar="${e.id}" data-estado="rechazado" ${e.estado === 'rechazado' ? 'disabled' : ''}>Rechazar</button></div>`}
+    </div>`).join('') : '<p class="sub">No hay entregas en esta lista.</p>'}`;
+}
+
 function vistaPersonas() {
   const q = busqueda.toLowerCase();
   const lista = st.personas.filter(x => !q || `${x.nombre} ${x.apellido} ${x.correo}`.toLowerCase().includes(q));
@@ -130,7 +156,7 @@ function render() {
   // No cerrar un selector de equipo que la facilitadora tiene abierto.
   if (activo && activo.tagName === 'SELECT' && activo.id !== 'sede' && $p.contains(activo)) return;
   const pos = activo && activo.id === 'buscar' ? activo.selectionStart : null;
-  $p.innerHTML = barra() + (tab === 'vivo' ? vistaVivo() : tab === 'equipos' ? vistaEquipos() : vistaPersonas());
+  $p.innerHTML = barra() + (tab === 'vivo' ? vistaVivo() : tab === 'equipos' ? vistaEquipos() : tab === 'entregas' ? vistaEntregas() : vistaPersonas());
   enlazar();
   if (pos !== null) { const b = document.getElementById('buscar'); b.focus(); b.setSelectionRange(pos, pos); }
 }
@@ -146,6 +172,18 @@ function enlazar() {
   document.getElementById('sede').onchange = (ev) => { cambiarSede(ev.target.value); st = null; actualizar(); };
   $p.querySelectorAll('[data-tab]').forEach(b => (b.onclick = () => { tab = b.dataset.tab; render(); }));
   $p.querySelectorAll('[data-act]').forEach(b => (b.onclick = () => hacer(api.f.actividad(token, sede, b.dataset.act, b.dataset.estado))));
+  $p.querySelectorAll('[data-filtro]').forEach(b => (b.onclick = () => { filtroEntregas = b.dataset.filtro; render(); }));
+  $p.querySelectorAll('[data-ver]').forEach(b => (b.onclick = async () => {
+    b.disabled = true; b.textContent = 'Cargando…';
+    const r = await api.f.foto(token, b.dataset.ver);
+    if (r.error) { toast(mensaje(r.error)); b.disabled = false; b.textContent = 'Ver foto'; return; }
+    fotos.set(b.dataset.ver, r.data.foto); render();
+  }));
+  $p.querySelectorAll('[data-revisar]').forEach(b => (b.onclick = () => {
+    let motivo = null;
+    if (b.dataset.estado === 'rechazado') { motivo = prompt('Motivo (opcional, lo verá el equipo):', ''); if (motivo === null) return; }
+    hacer(api.f.revisar(token, b.dataset.revisar, b.dataset.estado, motivo), b.dataset.estado === 'aprobado' ? 'Aprobada' : 'Rechazada');
+  }));
   $p.querySelectorAll('[data-equipos]').forEach(b => (b.onclick = () => hacer(api.f.equipos(token, sede, b.dataset.equipos))));
   $p.querySelectorAll('[data-mover]').forEach(s => (s.onchange = () => { s.blur(); hacer(api.f.mover(token, s.dataset.mover, s.value || null), 'Movida'); }));
   $p.querySelectorAll('[data-excepcion]').forEach(b => (b.onclick = () => hacer(api.f.excepcion(token, b.dataset.excepcion, b.dataset.activa === 'true'))));
@@ -177,6 +215,8 @@ async function actualizar() {
   if (r.error === 'sesion_invalida' || r.error === 'no_autorizado') return salir(r.error);
   if (r.error) return toast(mensaje(r.error));
   st = r.data;
+  const re = await api.f.entregas(token, sede);
+  if (!re.error) entregas = re.data;
   render();
 }
 

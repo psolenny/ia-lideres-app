@@ -75,7 +75,8 @@ function vistaAhora() {
   const a = st.actividad;
   if (!a) {
     return `<div class="espera"><div class="grande">☕</div><h1>Espera la siguiente actividad</h1>
-      <p class="sub">La facilitadora la abrirá en la pantalla. Mientras, mira el marcador.</p></div>`;
+      <p class="sub">La facilitadora la abrirá en la pantalla. Mientras, mira el marcador.</p>
+      ${tareasPorHacer() ? `<button class="btn rosa" data-ir="equipo" style="margin-top:12px">Tienes ${tareasPorHacer()} entrega(s) en Mi equipo</button>` : ''}</div>`;
   }
   if (a.tipo === 'equipos') return vistaEquipos();
   const r = a.mi_respuesta;
@@ -134,11 +135,71 @@ function vistaEquipos() {
   return html;
 }
 
+// Tareas abiertas sin entregar (o rechazadas): se marcan en la pestaña.
+function tareasPorHacer() {
+  return (st.tareas || []).filter(t => !t.entrega || t.entrega.estado === 'rechazado').length;
+}
+
+function sello(en) {
+  if (!en) return '<span class="estado cerrada">Sin entregar</span>';
+  if (en.estado === 'aprobado') return '<span class="estado resultados">Aprobado ✓</span>';
+  if (en.estado === 'rechazado') return '<span class="estado abierta">Rechazado</span>';
+  return '<span class="estado cerrada">En revisión</span>';
+}
+
+function tarjetaTarea(t, mio) {
+  const en = t.entrega;
+  const cerrada = en && en.estado === 'aprobado' && t.tipo !== 'checkin';
+  let html = `<div class="tarjeta tarea" id="t-${t.id}"><div class="tarea-cab"><b>${h(t.pregunta)}</b>${sello(en)}</div>
+    <p class="sub" style="margin:6px 0 0">${t.tipo === 'checkin' ? 'Personal' : 'De tu equipo'} · ${t.puntos} pts${en && en.subio && t.tipo !== 'checkin' ? ` · subió ${h(en.subio)}` : ''}</p>`;
+  if (en && en.estado === 'rechazado' && en.motivo) html += `<p class="motivo">Motivo: ${h(en.motivo)}</p>`;
+  if (t.tipo !== 'checkin' && !mio) return html + `<p class="sub">Necesitas estar en un equipo.</p></div>`;
+  if (cerrada) {
+    if (en.texto) html += `<p class="cita">${h(en.texto)}</p>`;
+    return html + '</div>';
+  }
+  if (t.tipo === 'hito') {
+    html += `<label class="campo" style="margin-top:10px"><span>Nota (opcional)</span><input data-nota="${t.id}" maxlength="200" value="${h(en?.texto || '')}"></label>
+      <label class="btn rosa archivo">${en ? 'Cambiar foto' : 'Tomar o elegir foto'}<input type="file" accept="image/*" data-foto="${t.id}" hidden></label>`;
+  } else if (t.tipo === 'texto') {
+    html += `<label class="campo" style="margin-top:10px"><span>Texto del equipo</span><textarea data-texto="${t.id}" rows="5" maxlength="1000">${h(en?.texto || '')}</textarea></label>
+      <button class="btn" data-enviar="${t.id}">${en ? 'Volver a enviar' : 'Enviar'}</button>`;
+  } else {
+    html += `<label class="campo" style="margin-top:10px"><span>Uso 1</span><textarea data-uso1="${t.id}" rows="3" maxlength="300">${h(en?.texto || '')}</textarea></label>
+      <label class="campo"><span>Uso 2</span><textarea data-uso2="${t.id}" rows="3" maxlength="300">${h(en?.texto2 || '')}</textarea></label>
+      <button class="btn" data-checkin="${t.id}">${en ? 'Guardar cambios' : 'Enviar'}</button>`;
+  }
+  return html + `<p class="error" data-err="${t.id}"></p></div>`;
+}
+
 function vistaMiEquipo() {
   const mio = st.yo.equipo;
-  if (!mio) return `<div class="espera"><div class="grande">👥</div><h1>Todavía no tienes equipo</h1><p class="sub">Se arman en vivo cuando la facilitadora lo indique.</p></div>`;
-  return `<h1>${h(mio.nombre)}</h1><div class="chips">${mio.miembros.map(n => `<span class="chip">${h(n)}</span>`).join('')}</div>
-    <div class="tarjeta" style="margin-top:18px"><h3>Próximamente</h3><p>Aquí subirán las fotos de sus avances y el registro de las dos semanas.</p></div>`;
+  let html = mio
+    ? `<h1>${h(mio.nombre)}</h1><div class="chips">${mio.miembros.map(n => `<span class="chip">${h(n)}</span>`).join('')}</div>`
+    : `<h1>Mi equipo</h1><p class="sub">Todavía no tienes equipo. Se arman en vivo cuando la facilitadora lo indique.</p>`;
+  const tareas = st.tareas || [];
+  html += `<h2>Entregas</h2>` + (tareas.length
+    ? tareas.map(t => tarjetaTarea(t, mio)).join('')
+    : '<p class="sub">Cuando la facilitadora abra un hito o una entrega, aparecerá aquí.</p>');
+  return html;
+}
+
+// Reduce la foto en el celular (lado mayor 1280 px, JPEG) para que suba rápido con mal wifi.
+async function reducirFoto(archivo, max = 1280, calidad = 0.7) {
+  const url = URL.createObjectURL(archivo);
+  try {
+    const img = await new Promise((ok, mal) => { const i = new Image(); i.onload = () => ok(i); i.onerror = mal; i.src = url; });
+    const escala = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * escala);
+    c.height = Math.round(img.naturalHeight * escala);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    let dato = c.toDataURL('image/jpeg', calidad);
+    if (dato.length > 950000) dato = c.toDataURL('image/jpeg', 0.5);
+    return dato;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 function filasRanking(lista, marcarTop) {
@@ -157,15 +218,18 @@ function render(forzar = false) {
   if (!forzar && firma === ultimaFirma) return;
   // No pisar lo que la persona está escribiendo.
   const activo = document.activeElement;
-  if (!forzar && activo && activo.tagName === 'INPUT' && $app.contains(activo)) return;
+  if (!forzar && activo && (activo.tagName === 'INPUT' || activo.tagName === 'TEXTAREA') && $app.contains(activo)) return;
+  if (!forzar && ocupado) return;
   ultimaFirma = firma;
   $app.innerHTML = cabecera() + vista;
   $tabs.hidden = false;
+  const pend = tareasPorHacer();
+  $tabs.querySelector('[data-tab="equipo"]').dataset.aviso = pend ? String(pend) : '';
   enlazar();
 }
 
 function mostrarError(codigo) {
-  const $e = document.getElementById('err');
+  const $e = document.getElementById('err') || $app.querySelector('[data-err]');
   if ($e) $e.textContent = mensaje(codigo);
 }
 
@@ -188,9 +252,34 @@ function enlazar() {
   if (fn) fn.onsubmit = (ev) => { ev.preventDefault(); const t = ev.target.t.value; accion(() => api.responder(token, st.actividad.id, null, t)); };
   const fc = document.getElementById('fcrear');
   if (fc) fc.onsubmit = (ev) => { ev.preventDefault(); const n = ev.target.n.value; accion(() => api.crearEquipo(token, n)); };
+  $app.querySelectorAll('[data-ir]').forEach(b => (b.onclick = () => $tabs.querySelector(`[data-tab="${b.dataset.ir}"]`).click()));
   $app.querySelectorAll('[data-unir]').forEach(b => (b.onclick = () => accion(() => api.unirseEquipo(token, b.dataset.unir))));
   const s = document.getElementById('salir');
   if (s) s.onclick = () => accion(() => api.salirEquipo(token));
+
+  // Entregas de «Mi equipo»
+  const errTarea = (id, txt) => { const e = $app.querySelector(`[data-err="${id}"]`); if (e) e.textContent = txt; };
+  $app.querySelectorAll('[data-foto]').forEach(inp => (inp.onchange = async () => {
+    const id = inp.dataset.foto, archivo = inp.files && inp.files[0];
+    if (!archivo) return;
+    const nota = ($app.querySelector(`[data-nota="${id}"]`) || {}).value || null;
+    errTarea(id, 'Preparando la foto…');
+    let foto;
+    try { foto = await reducirFoto(archivo); } catch { return errTarea(id, 'No se pudo leer esa imagen. Prueba con otra.'); }
+    errTarea(id, 'Subiendo…');
+    accion(() => api.entregar(token, id, nota, null, foto));
+  }));
+  $app.querySelectorAll('[data-enviar]').forEach(b => (b.onclick = () => {
+    const id = b.dataset.enviar, t = $app.querySelector(`[data-texto="${id}"]`).value.trim();
+    if (t.length < 10) return errTarea(id, 'Escribe al menos 10 caracteres.');
+    accion(() => api.entregar(token, id, t));
+  }));
+  $app.querySelectorAll('[data-checkin]').forEach(b => (b.onclick = () => {
+    const id = b.dataset.checkin;
+    const u1 = $app.querySelector(`[data-uso1="${id}"]`).value.trim(), u2 = $app.querySelector(`[data-uso2="${id}"]`).value.trim();
+    if (u1.length < 10 || u2.length < 10) return errTarea(id, 'Cuenta los dos usos, con al menos 10 caracteres cada uno.');
+    accion(() => api.entregar(token, id, u1, u2));
+  }));
 }
 
 async function actualizar() {

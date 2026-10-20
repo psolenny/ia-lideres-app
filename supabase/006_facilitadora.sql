@@ -27,7 +27,10 @@ begin
     'actividades', (select json_agg(json_build_object(
         'id', a.id, 'dia', a.dia, 'orden', a.orden, 'tipo', a.tipo, 'lamina', a.lamina, 'pregunta', a.pregunta,
         'estado', coalesce(ea.estado, 'cerrada'),
-        'respuestas', (select count(*) from respuestas r where r.sede = p_sede and r.actividad_id = a.id)
+        'respuestas', case when es_vivo(a.tipo)
+          then (select count(*) from respuestas r where r.sede = p_sede and r.actividad_id = a.id)
+          else (select count(*) from entregas en where en.sede = p_sede and en.actividad_id = a.id) end,
+        'pendientes', (select count(*) from entregas en where en.sede = p_sede and en.actividad_id = a.id and en.estado = 'pendiente')
       ) order by a.dia, a.orden)
       from actividades a left join estado_actividad ea on ea.actividad_id = a.id and ea.sede = p_sede),
     'personas', coalesce((select json_agg(json_build_object(
@@ -53,10 +56,11 @@ begin
 
   -- Bloquea la sede: dos toques seguidos no pueden dejar dos actividades vivas.
   perform 1 from sedes where id = p_sede for update;
-  if p_estado <> 'cerrada' then
-    -- Solo una actividad no cerrada por sede.
+  if p_estado <> 'cerrada' and es_vivo(v_tipo) then
+    -- Solo una actividad en vivo no cerrada por sede. Las de equipo no se tocan.
     update estado_actividad set estado = 'cerrada', cambiado_en = now()
-      where sede = p_sede and actividad_id <> p_actividad and estado <> 'cerrada';
+      where sede = p_sede and actividad_id <> p_actividad and estado <> 'cerrada'
+        and actividad_id in (select id from actividades where es_vivo(tipo));
     -- Si la que se cierra era la de equipos, el armado queda en final.
     if exists (select 1 from sedes where id = p_sede and equipos_estado = 'abierta') and v_tipo <> 'equipos' then
       update sedes set equipos_estado = 'final' where id = p_sede;

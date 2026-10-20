@@ -37,7 +37,14 @@ insert into actividades (id, dia, orden, tipo, lamina, pregunta, opciones, corre
   'Lo que no le dices, lo completa con lo que decide leer o suponer. Por eso RCTFR.', 50),
 ('a9', 1, 9, 'equipos', 'Al volver, siéntate con tu equipo', 'Armen sus equipos: de 2 a 4 personas, mezclen niveles.', null, null, null, 0),
 ('a10', 1, 10, 'encuesta', 'Cierre', '¿Qué tan listo te sientes para usar lo que construyeron esta semana?',
-  '["Listo, ya sé dónde lo voy a usar", "Casi: me falta practicar", "Todavía no lo veo en mi trabajo"]', null, null, 10)
+  '["Listo, ya sé dónde lo voy a usar", "Casi: me falta practicar", "Todavía no lo veo en mi trabajo"]', null, null, 10),
+-- Actividades de equipo del Día 1 (pestaña «Mi equipo»).
+('h1', 1, 9.1, 'hito', 'Reto 1 · elegir', 'Hito 1 · Problema elegido: suban una foto del problema que eligieron', null, null, null, 100),
+('h2', 1, 9.2, 'hito', 'Reto 2 · el mapa / primer logro', 'Hito 2 · Primer prompt que funcionó: foto de la pantalla con el resultado', null, null, null, 100),
+('h3', 1, 9.3, 'hito', 'Reto 3 · MVP', 'Hito 3 · MVP corriendo: foto del MVP funcionando', null, null, null, 100),
+('t1', 1, 9.4, 'texto', 'Reto 3 · MVP', 'Nuestro mejor prompt: peguen el prompt que mejor les funcionó', null, null, null, 50),
+('t2', 1, 9.5, 'texto', 'Cuando no sale bien', 'Error cazado: ¿qué error de la IA detectaron y cómo lo corrigieron?', null, null, null, 100),
+('c1', 1, 11, 'checkin', 'Úsenlo dos semanas', 'Check-in: cuenta dos usos reales de IA que hiciste en estas dos semanas', null, null, null, 50)
 on conflict (id) do update set dia = excluded.dia, orden = excluded.orden, tipo = excluded.tipo, lamina = excluded.lamina,
   pregunta = excluded.pregunta, opciones = excluded.opciones, correcta = excluded.correcta,
   explicacion = excluded.explicacion, puntos = excluded.puntos;

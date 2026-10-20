@@ -3,10 +3,10 @@
 const espera = (ms) => new Promise(r => setTimeout(r, ms));
 
 export function crearApi({ url, anonKey, timeoutMs = 9000 }, fetcher = globalThis.fetch?.bind(globalThis)) {
-  async function rpc(nombre, args) {
+  async function rpc(nombre, args, ms = timeoutMs) {
     // Con mal wifi una llamada puede quedar colgada un minuto: se corta y se trata como «sin conexión».
     const corte = new AbortController();
-    const reloj = setTimeout(() => corte.abort(), timeoutMs);
+    const reloj = setTimeout(() => corte.abort(), ms);
     let r, cuerpo = null;
     try {
       r = await fetcher(`${url}/rest/v1/rpc/${nombre}`, {
@@ -49,6 +49,9 @@ export function crearApi({ url, anonKey, timeoutMs = 9000 }, fetcher = globalThi
     unirseEquipo: (token, equipo) => rpc('unirse_equipo', { p_token: token, p_equipo: equipo }),
     salirEquipo: (token) => rpc('salir_equipo', { p_token: token }),
     pantalla: (sede) => rpc('pantalla', { p_sede: sede }),
+    // Una foto puede tardar más en subir con mal wifi: 30 s. Reintentar es seguro (reemplaza la entrega pendiente).
+    entregar: (token, actividad, texto = null, texto2 = null, foto = null) =>
+      rpc('entregar', { p_token: token, p_actividad: actividad, p_texto: texto, p_texto2: texto2, p_foto: foto }, foto ? 30000 : timeoutMs),
     f: {
       estado: (token, sede) => rpc('f_estado', { p_token: token, p_sede: sede }),
       actividad: (token, sede, actividad, estado) => rpc('f_actividad', { p_token: token, p_sede: sede, p_actividad: actividad, p_estado: estado }),
@@ -59,6 +62,9 @@ export function crearApi({ url, anonKey, timeoutMs = 9000 }, fetcher = globalThi
       resetPin: (token, persona, pin) => rpc('f_reset_pin', { p_token: token, p_persona: persona, p_pin: pin }),
       registrar: (token, sede, nombre, apellido, correo, pin) => rpc('f_registrar', { p_token: token, p_sede: sede, p_nombre: nombre, p_apellido: apellido, p_correo: correo, p_pin: pin }),
       borrarPersona: (token, persona) => rpc('f_borrar_persona', { p_token: token, p_persona: persona }),
+      entregas: (token, sede) => rpc('f_entregas', { p_token: token, p_sede: sede }),
+      foto: (token, entrega) => rpc('f_foto', { p_token: token, p_entrega: entrega }, 30000),
+      revisar: (token, entrega, estado, motivo = null) => rpc('f_revisar', { p_token: token, p_entrega: entrega, p_estado: estado, p_motivo: motivo }),
     },
   };
 }

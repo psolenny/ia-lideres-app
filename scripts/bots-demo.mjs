@@ -2,6 +2,7 @@
 // Uso: node scripts/bots-demo.mjs [cantidad=6] [minutos=60]
 // Solo funciona en la sede demo. Nunca en santiago ni sd.
 import { readFileSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
 
 const SEDE = 'demo';
 const CANTIDAD = Number(process.argv[2] || 6);
@@ -35,6 +36,24 @@ async function rpc(nombre, args) {
 }
 
 const azar = (n) => Math.floor(Math.random() * n);
+
+// PNG de un color (320×200) como data URL: sirve de «foto» de prueba.
+function fotoDePrueba() {
+  const [r, g, b] = [[0, 47, 108], [227, 28, 121], [162, 0, 103]][azar(3)];
+  const w = 320, hgt = 200, fila = Buffer.alloc(1 + w * 3);
+  for (let x = 0; x < w; x++) fila.set([r, g, b], 1 + x * 3);
+  const crudo = Buffer.concat(Array.from({ length: hgt }, () => fila));
+  const crc = (buf) => { let c = ~0; for (const v of buf) { c ^= v; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1)); } return ~c >>> 0; };
+  const bloque = (tipo, datos) => { const t = Buffer.from(tipo); const l = Buffer.alloc(4); l.writeUInt32BE(datos.length);
+    const c = Buffer.alloc(4); c.writeUInt32BE(crc(Buffer.concat([t, datos]))); return Buffer.concat([l, t, datos, c]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(hgt, 4); ihdr.set([8, 2, 0, 0, 0], 8);
+  const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), bloque('IHDR', ihdr), bloque('IDAT', deflateSync(crudo)), bloque('IEND', Buffer.alloc(0))]);
+  return 'data:image/png;base64,' + png.toString('base64');
+}
+const USOS = ['Resumí el informe mensual de ventas en cinco puntos', 'Preparé la agenda de la reunión de equipo', 'Redacté el borrador de una política interna',
+  'Comparé dos cotizaciones de proveedores sin datos sensibles', 'Armé el guion de la capacitación del lunes', 'Ordené las ideas para el plan del trimestre'];
+const TEXTOS = { t1: 'Actúa como analista de operaciones. Con estas notas, arma un resumen de 5 puntos y una lista de pendientes con responsable.',
+  t2: 'La IA inventó una cifra de ventas que no estaba en el archivo. Lo vimos al comparar con el reporte original y le pedimos citar la fila.' };
 const espera = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function entrarBot(i) {
@@ -50,6 +69,19 @@ async function turno(bot) {
   if (bot.ocupado) return;
   const { data: st, error } = await rpc('estado', { p_token: bot.token });
   if (error || !st) return;
+  // Entregas de «Mi equipo»: cada bot tiene 1 de 4 chances por turno de encargarse de una pendiente.
+  for (const t of st.tareas || []) {
+    if (t.entrega && t.entrega.estado !== 'rechazado') continue;
+    if (t.tipo !== 'checkin' && (!st.yo.equipo || azar(4) !== 0)) continue;
+    bot.ocupado = true;
+    await espera(3000 + azar(12000));
+    const r = t.tipo === 'hito' ? await rpc('entregar', { p_token: bot.token, p_actividad: t.id, p_texto: 'Foto de prueba', p_texto2: null, p_foto: fotoDePrueba() })
+      : t.tipo === 'texto' ? await rpc('entregar', { p_token: bot.token, p_actividad: t.id, p_texto: TEXTOS[t.id] || 'Texto de prueba del equipo para revisar.', p_texto2: null, p_foto: null })
+      : await rpc('entregar', { p_token: bot.token, p_actividad: t.id, p_texto: USOS[azar(USOS.length)], p_texto2: USOS[azar(USOS.length)], p_foto: null });
+    if (!r.error) console.log(`${bot.nombre} entregó ${t.id}`);
+    bot.ocupado = false;
+    return;
+  }
   const a = st.actividad;
   if (!a || a.estado !== 'abierta') return;
   if (a.tipo === 'equipos') {

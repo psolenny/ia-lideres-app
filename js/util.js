@@ -58,6 +58,10 @@ export const MENSAJES = {
   no_autorizado: 'Esta página es solo para la facilitadora',
   sede_invalida: 'Abre el enlace o el QR de tu sede',
   red: 'Sin conexión. Reintentando…',
+  sin_equipo: 'Primero únete a un equipo',
+  foto_invalida: 'Elige una foto (JPG o PNG)',
+  ya_aprobado: 'Esta entrega ya fue aprobada',
+  entrega_no_existe: 'Esa entrega ya no existe',
 };
 
 export function mensaje(codigo) {

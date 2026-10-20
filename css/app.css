@@ -168,3 +168,18 @@ p.sub { color: var(--gris); margin: 0 0 16px; line-height: 1.45; }
   .barra-res { grid-template-columns: 1fr 60px; }
   .barra-res .pista { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ---------- Fase 2: entregas ---------- */
+.tarea .tarea-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.tarea textarea, .campo textarea { width: 100%; border: 2px solid var(--negro); border-radius: var(--radio); padding: 12px; font: inherit; font-size: 1rem; resize: vertical; }
+.tarea textarea:focus { outline: 3px solid var(--rosa); outline-offset: 1px; }
+.btn.archivo { text-align: center; cursor: pointer; }
+.motivo { color: var(--mal); font-weight: 600; margin: 8px 0 0; }
+.cita { border-left: 4px solid var(--rosa); padding: 6px 10px; margin: 10px 0 0; background: var(--suave); white-space: pre-wrap; }
+.pestanas button { position: relative; }
+.pestanas button[data-aviso]:not([data-aviso=""])::after { content: attr(data-aviso); position: absolute; top: 6px; left: calc(50% + 10px);
+  background: var(--rosa); color: #fff; border-radius: 999px; font-size: .7rem; font-weight: 700; min-width: 18px; height: 18px; line-height: 18px; padding: 0 5px; }
+.foto-rev { max-width: 100%; max-height: 360px; border-radius: 10px; display: block; margin: 8px 0; }
+.entrega { border: 2px solid var(--linea); border-radius: var(--radio); padding: 12px; margin-bottom: 10px; }
+.entrega.pendiente { border-color: var(--rosa); }
+.entrega .cab { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
