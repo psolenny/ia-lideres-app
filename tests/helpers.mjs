@@ -16,6 +16,7 @@ export async function rpc(nombre, args = {}) {
     method: 'POST',
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(args),
+    signal: AbortSignal.timeout(20000), // un corte de red no deja la prueba colgada
   });
   const cuerpo = await r.json().catch(() => null);
   if (!r.ok) return { data: null, error: cuerpo?.message || `http_${r.status}` };
@@ -35,7 +36,7 @@ export function psql(sql) {
   // Las pruebas nunca tocan sedes reales.
   if (/'(santiago|sd|demo)'/.test(sql)) throw new Error('prueba_toca_sede_real');
   try {
-    return execFileSync('psql', [DATABASE_URL, '-At', '-v', 'ON_ERROR_STOP=1', '-c', sql], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+    return execFileSync('psql', [DATABASE_URL, '-At', '-v', 'ON_ERROR_STOP=1', '-c', sql], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000 }).trim();
   } catch (e) {
     // No mostrar la cadena de conexión (lleva la contraseña) en los errores.
     throw new Error(`psql: ${String(e.stderr || '').trim()}`);

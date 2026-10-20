@@ -90,3 +90,8 @@ test('I6: sedeDeURL funciona sin Object.hasOwn (navegadores viejos)', () => {
     Object.hasOwn = original;
   }
 });
+
+test('una respuesta vacía del servidor se trata como "red"', async () => {
+  const api = crearApi({ url: 'x', anonKey: 'k' }, async () => ({ ok: true, json: async () => { throw new Error('vacío'); } }));
+  assert.equal((await api.pantalla('demo')).error, 'red');
+});

@@ -22,7 +22,9 @@ export function crearApi({ url, anonKey, timeoutMs = 9000 }, fetcher = globalThi
       clearTimeout(reloj);
     }
     if (!r.ok) return { data: null, error: (cuerpo && cuerpo.message) || (r.status >= 500 ? 'red' : 'error') };
-    if (cuerpo && typeof cuerpo === 'object' && typeof cuerpo.error === 'string') return { data: null, error: cuerpo.error };
+    // Ninguna función devuelve vacío: si llega vacío, fue un corte a medio camino.
+    if (cuerpo === null) return { data: null, error: 'red' };
+    if (typeof cuerpo === 'object' && typeof cuerpo.error === 'string') return { data: null, error: cuerpo.error };
     return { data: cuerpo, error: null };
   }
 

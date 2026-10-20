@@ -49,7 +49,7 @@ async function entrarBot(i) {
 async function turno(bot) {
   if (bot.ocupado) return;
   const { data: st, error } = await rpc('estado', { p_token: bot.token });
-  if (error) return;
+  if (error || !st) return;
   const a = st.actividad;
   if (!a || a.estado !== 'abierta') return;
   if (a.tipo === 'equipos') {
@@ -79,7 +79,8 @@ for (let i = 0; i < CANTIDAD; i++) bots.push(await entrarBot(i));
 console.log(`${bots.length} participantes de prueba en «demo»: ${bots.map(b => b.nombre).join(', ')}. Activos ${MINUTOS} min.`);
 const fin = Date.now() + MINUTOS * 60000;
 while (Date.now() < fin) {
-  bots.forEach(b => turno(b));
+  // Un turno fallido nunca detiene a los demás: se libera el bot y se reintenta en 3 s.
+  bots.forEach(b => turno(b).catch(e => { b.ocupado = false; console.log(`${b.nombre}: ${e.message}`); }));
   await espera(3000);
 }
 console.log('Fin de los participantes de prueba.');
