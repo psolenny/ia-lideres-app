@@ -62,6 +62,8 @@ export const MENSAJES = {
   foto_invalida: 'Elige una foto (JPG o PNG)',
   ya_aprobado: 'Esta entrega ya fue aprobada',
   entrega_no_existe: 'Esa entrega ya no existe',
+  entrega_cambio: 'El equipo cambió esta entrega. Revísala de nuevo',
+  no_revisable: 'El check-in no necesita revisión',
 };
 
 export function mensaje(codigo) {

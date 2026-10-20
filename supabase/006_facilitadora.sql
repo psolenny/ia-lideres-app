@@ -38,6 +38,8 @@ begin
         'es_facilitadora', pe.es_facilitadora, 'equipo_id', pe.equipo_id, 'bloqueado', pe.bloqueado_hasta > now(),
         'nivel', (select r.opcion from respuestas r where r.persona_id = pe.id and r.actividad_id = 'a1'),
         'puntos', (select coalesce(sum(r.puntos), 0) from respuestas r where r.persona_id = pe.id)
+          + (select coalesce(sum(a2.puntos), 0) from entregas en join actividades a2 on a2.id = en.actividad_id
+             where en.persona_id = pe.id and en.equipo_id is null and en.estado = 'aprobado')
       ) order by pe.nombre, pe.apellido) from personas pe where pe.sede = p_sede), '[]'::json),
     'equipos', coalesce((select json_agg(json_build_object(
         'id', e.id, 'nombre', e.nombre, 'cupo_max', e.cupo_max, 'excepcion', e.excepcion

@@ -15,7 +15,9 @@ let st = null;
 let busqueda = '';
 let entregas = [];
 let filtroEntregas = 'pendiente';
-const fotos = new Map();   // fotos ya descargadas, por entrega
+const fotos = new Map();   // fotos ya descargadas, por «id:versión»
+const cargandoFoto = new Set();
+let ultimoHtml = '';
 const EN_VIVO = ['encuesta', 'nube', 'quiz', 'equipos'];
 let sondeo = null;
 
@@ -124,12 +126,14 @@ function vistaEntregas() {
     ${lista.length ? lista.map(e => `<div class="entrega ${e.estado === 'pendiente' && e.tipo !== 'checkin' ? 'pendiente' : ''}">
       <div class="cab"><b>${h(e.equipo || e.subio)}</b><span><small>${h(TIPOS[e.tipo] || e.tipo)}</small> <span class="estado ${e.estado === 'aprobado' ? 'resultados' : e.estado === 'rechazado' ? 'abierta' : 'cerrada'}">${e.estado}</span></span></div>
       <p class="sub" style="margin:4px 0">${h(e.actividad)} · subió ${h(e.subio)}</p>
-      ${e.tiene_foto ? (fotos.has(e.id) ? `<img class="foto-rev" src="${h(fotos.get(e.id))}" alt="Foto de ${h(e.equipo || e.subio)}">` : `<button class="mini" data-ver="${e.id}">Ver foto</button>`) : ''}
+      ${e.tiene_foto ? (fotos.has(`${e.id}:${e.actualizado}`) ? `<img class="foto-rev" src="${h(fotos.get(`${e.id}:${e.actualizado}`))}" alt="Foto de ${h(e.equipo || e.subio)}">`
+        : `<button class="mini" data-ver="${e.id}" data-version="${h(e.actualizado)}" ${cargandoFoto.has(e.id) ? 'disabled' : ''}>${cargandoFoto.has(e.id) ? 'Cargando…' : 'Ver foto'}</button>`) : ''}
       ${e.texto ? `<p class="cita">${h(e.texto)}</p>` : ''}${e.texto2 ? `<p class="cita">${h(e.texto2)}</p>` : ''}
       ${e.motivo ? `<p class="motivo">Motivo: ${h(e.motivo)}</p>` : ''}
       ${e.tipo === 'checkin' ? '' : `<div class="acciones" style="margin-top:8px">
-        <button class="primario" data-revisar="${e.id}" data-estado="aprobado" ${e.estado === 'aprobado' ? 'disabled' : ''}>Aprobar</button>
-        <button data-revisar="${e.id}" data-estado="rechazado" ${e.estado === 'rechazado' ? 'disabled' : ''}>Rechazar</button></div>`}
+        <button class="primario" data-revisar="${e.id}" data-version="${h(e.actualizado)}" data-estado="aprobado" ${e.estado === 'aprobado' || (e.tiene_foto && !fotos.has(`${e.id}:${e.actualizado}`)) ? 'disabled' : ''}>Aprobar</button>
+        <button data-revisar="${e.id}" data-version="${h(e.actualizado)}" data-estado="rechazado" ${e.estado === 'rechazado' ? 'disabled' : ''}>Rechazar</button>
+        ${e.tiene_foto && !fotos.has(`${e.id}:${e.actualizado}`) ? '<small>Mira la foto antes de aprobar</small>' : ''}</div>`}
     </div>`).join('') : '<p class="sub">No hay entregas en esta lista.</p>'}`;
 }
 
@@ -156,7 +160,11 @@ function render() {
   // No cerrar un selector de equipo que la facilitadora tiene abierto.
   if (activo && activo.tagName === 'SELECT' && activo.id !== 'sede' && $p.contains(activo)) return;
   const pos = activo && activo.id === 'buscar' ? activo.selectionStart : null;
-  $p.innerHTML = barra() + (tab === 'vivo' ? vistaVivo() : tab === 'equipos' ? vistaEquipos() : tab === 'entregas' ? vistaEntregas() : vistaPersonas());
+  const html = barra() + (tab === 'vivo' ? vistaVivo() : tab === 'equipos' ? vistaEquipos() : tab === 'entregas' ? vistaEntregas() : vistaPersonas());
+  // Sin cambios no se redibuja: evita parpadeos y recargar fotos pesadas cada 3 s.
+  if (html === ultimoHtml && pos === null) return;
+  ultimoHtml = html;
+  $p.innerHTML = html;
   enlazar();
   if (pos !== null) { const b = document.getElementById('buscar'); b.focus(); b.setSelectionRange(pos, pos); }
 }
@@ -174,15 +182,19 @@ function enlazar() {
   $p.querySelectorAll('[data-act]').forEach(b => (b.onclick = () => hacer(api.f.actividad(token, sede, b.dataset.act, b.dataset.estado))));
   $p.querySelectorAll('[data-filtro]').forEach(b => (b.onclick = () => { filtroEntregas = b.dataset.filtro; render(); }));
   $p.querySelectorAll('[data-ver]').forEach(b => (b.onclick = async () => {
-    b.disabled = true; b.textContent = 'Cargando…';
-    const r = await api.f.foto(token, b.dataset.ver);
-    if (r.error) { toast(mensaje(r.error)); b.disabled = false; b.textContent = 'Ver foto'; return; }
-    fotos.set(b.dataset.ver, r.data.foto); render();
+    const id = b.dataset.ver, version = b.dataset.version;
+    if (cargandoFoto.has(id)) return;
+    cargandoFoto.add(id); render();
+    const r = await api.f.foto(token, id);
+    cargandoFoto.delete(id);
+    if (r.error) { toast(mensaje(r.error)); render(); return; }
+    // La foto se guarda con la versión que se pidió: si el equipo la cambia, se vuelve a pedir.
+    fotos.set(`${id}:${version}`, r.data.foto); render();
   }));
   $p.querySelectorAll('[data-revisar]').forEach(b => (b.onclick = () => {
     let motivo = null;
     if (b.dataset.estado === 'rechazado') { motivo = prompt('Motivo (opcional, lo verá el equipo):', ''); if (motivo === null) return; }
-    hacer(api.f.revisar(token, b.dataset.revisar, b.dataset.estado, motivo), b.dataset.estado === 'aprobado' ? 'Aprobada' : 'Rechazada');
+    hacer(api.f.revisar(token, b.dataset.revisar, b.dataset.estado, motivo, b.dataset.version), b.dataset.estado === 'aprobado' ? 'Aprobada' : 'Rechazada');
   }));
   $p.querySelectorAll('[data-equipos]').forEach(b => (b.onclick = () => hacer(api.f.equipos(token, sede, b.dataset.equipos))));
   $p.querySelectorAll('[data-mover]').forEach(s => (s.onchange = () => { s.blur(); hacer(api.f.mover(token, s.dataset.mover, s.value || null), 'Movida'); }));

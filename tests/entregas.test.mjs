@@ -14,7 +14,9 @@ after(resetPrueba);
 
 const act = (id, estado = 'abierta') => rpc('f_actividad', { p_token: f.token, p_sede: 'prueba', p_actividad: id, p_estado: estado });
 const entregar = (t, a, o = {}) => rpc('entregar', { p_token: t, p_actividad: a, p_texto: o.texto ?? null, p_texto2: o.texto2 ?? null, p_foto: o.foto ?? null });
-const revisar = (id, estado, motivo = null) => rpc('f_revisar', { p_token: f.token, p_entrega: id, p_estado: estado, p_motivo: motivo });
+const version = (id) => psql(`select to_json(actualizado) #>> '{}' from entregas where id = '${id}'`);
+const revisar = (id, estado, motivo = null, vista = version(id)) =>
+  rpc('f_revisar', { p_token: f.token, p_entrega: id, p_estado: estado, p_motivo: motivo, p_actualizado: vista });
 
 async function equipo(nombre, ...personas) {
   psql(`update sedes set equipos_estado = 'abierta' where id = 'prueba'`);
@@ -161,4 +163,40 @@ test('los puntos del check-in se ven en el encabezado de la persona', async () =
   await entregar(a.token, 'c1', { texto: 'Resumí el informe de ventas', texto2: 'Preparé la agenda del comité' });
   const { data } = await rpc('estado', { p_token: a.token });
   assert.equal(data.yo.puntos, 50);
+});
+
+test('C1: no se aprueba una foto que cambió después de que la facilitadora la vio', async () => {
+  const a = await persona(), b = await persona();
+  await equipo('Cambia', a, b);
+  await act('h1');
+  const { data: e } = await entregar(a.token, 'h1', { foto: FOTO });
+  const vista = version(e.id);
+  await revisar(e.id, 'rechazado', 'borrosa', vista);
+  await entregar(b.token, 'h1', { foto: FOTO });
+  assert.equal((await revisar(e.id, 'aprobado', null, vista)).error, 'entrega_cambio');
+  assert.equal((await revisar(e.id, 'aprobado')).error, null);
+});
+
+test('check-in: dos envíos simultáneos no dan error', async () => {
+  const a = await persona();
+  await act('c1');
+  const o = { texto: 'Resumí el informe de ventas', texto2: 'Preparé la agenda del comité' };
+  const [r1, r2] = await Promise.all([entregar(a.token, 'c1', o), entregar(a.token, 'c1', o)]);
+  assert.equal(r1.error, null);
+  assert.equal(r2.error, null);
+});
+
+test('el check-in no se revisa (se aprueba solo)', async () => {
+  const a = await persona();
+  await act('c1');
+  const { data: e } = await entregar(a.token, 'c1', { texto: 'Resumí el informe de ventas', texto2: 'Preparé la agenda del comité' });
+  assert.equal((await revisar(e.id, 'rechazado')).error, 'no_revisable');
+});
+
+test('los puntos del panel incluyen el check-in', async () => {
+  const a = await persona();
+  await act('c1');
+  await entregar(a.token, 'c1', { texto: 'Resumí el informe de ventas', texto2: 'Preparé la agenda del comité' });
+  const { data } = await rpc('f_estado', { p_token: f.token, p_sede: 'prueba' });
+  assert.equal(data.personas.find(x => x.id === a.persona.id).puntos, 50);
 });

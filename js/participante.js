@@ -16,6 +16,10 @@ let tab = 'ahora';
 let ocupado = false;
 let ultimaFirma = '';
 let sondeo = null;
+// Lo que la persona escribe en «Mi equipo» se guarda aquí hasta que se envía bien:
+// un redibujo, un error de red o salir a copiar un ejemplo no lo borran.
+const borradores = new Map();
+let eligiendoFoto = false;   // con el selector de fotos o la cámara abiertos no se redibuja
 
 // ---------- Entrada ----------
 function vistaEntrada(modo = 'registro', error = '') {
@@ -137,7 +141,7 @@ function vistaEquipos() {
 
 // Tareas abiertas sin entregar (o rechazadas): se marcan en la pestaña.
 function tareasPorHacer() {
-  return (st.tareas || []).filter(t => !t.entrega || t.entrega.estado === 'rechazado').length;
+  return (st.tareas || []).filter(t => (t.tipo === 'checkin' || st.yo.equipo) && (!t.entrega || t.entrega.estado === 'rechazado')).length;
 }
 
 function sello(en) {
@@ -159,14 +163,14 @@ function tarjetaTarea(t, mio) {
     return html + '</div>';
   }
   if (t.tipo === 'hito') {
-    html += `<label class="campo" style="margin-top:10px"><span>Nota (opcional)</span><input data-nota="${t.id}" maxlength="200" value="${h(en?.texto || '')}"></label>
+    html += `<label class="campo" style="margin-top:10px"><span>Nota (opcional)</span><input data-nota="${t.id}" data-borrador="nota-${t.id}" maxlength="200" value="${h(en?.texto || '')}"></label>
       <label class="btn rosa archivo">${en ? 'Cambiar foto' : 'Tomar o elegir foto'}<input type="file" accept="image/*" data-foto="${t.id}" hidden></label>`;
   } else if (t.tipo === 'texto') {
-    html += `<label class="campo" style="margin-top:10px"><span>Texto del equipo</span><textarea data-texto="${t.id}" rows="5" maxlength="1000">${h(en?.texto || '')}</textarea></label>
+    html += `<label class="campo" style="margin-top:10px"><span>Texto del equipo</span><textarea data-texto="${t.id}" data-borrador="texto-${t.id}" rows="5" maxlength="1000">${h(en?.texto || '')}</textarea></label>
       <button class="btn" data-enviar="${t.id}">${en ? 'Volver a enviar' : 'Enviar'}</button>`;
   } else {
-    html += `<label class="campo" style="margin-top:10px"><span>Uso 1</span><textarea data-uso1="${t.id}" rows="3" maxlength="300">${h(en?.texto || '')}</textarea></label>
-      <label class="campo"><span>Uso 2</span><textarea data-uso2="${t.id}" rows="3" maxlength="300">${h(en?.texto2 || '')}</textarea></label>
+    html += `<label class="campo" style="margin-top:10px"><span>Uso 1</span><textarea data-uso1="${t.id}" data-borrador="uso1-${t.id}" rows="3" maxlength="300">${h(en?.texto || '')}</textarea></label>
+      <label class="campo"><span>Uso 2</span><textarea data-uso2="${t.id}" data-borrador="uso2-${t.id}" rows="3" maxlength="300">${h(en?.texto2 || '')}</textarea></label>
       <button class="btn" data-checkin="${t.id}">${en ? 'Guardar cambios' : 'Enviar'}</button>`;
   }
   return html + `<p class="error" data-err="${t.id}"></p></div>`;
@@ -219,30 +223,43 @@ function render(forzar = false) {
   // No pisar lo que la persona está escribiendo.
   const activo = document.activeElement;
   if (!forzar && activo && (activo.tagName === 'INPUT' || activo.tagName === 'TEXTAREA') && $app.contains(activo)) return;
-  if (!forzar && ocupado) return;
+  if (!forzar && (ocupado || eligiendoFoto)) return;
   ultimaFirma = firma;
   $app.innerHTML = cabecera() + vista;
   $tabs.hidden = false;
+  $app.querySelectorAll('[data-borrador]').forEach(el => { if (borradores.has(el.dataset.borrador)) el.value = borradores.get(el.dataset.borrador); });
   const pend = tareasPorHacer();
   $tabs.querySelector('[data-tab="equipo"]').dataset.aviso = pend ? String(pend) : '';
   enlazar();
 }
 
 function mostrarError(codigo) {
-  const $e = document.getElementById('err') || $app.querySelector('[data-err]');
+  const $e = document.getElementById('err');
   if ($e) $e.textContent = mensaje(codigo);
 }
 
-async function accion(fn) {
-  if (ocupado) return;
+// Mensajes propios de las entregas (los generales hablan de la nube o de la red con reintento automático).
+const MENSAJES_ENTREGA = {
+  texto_invalido: 'Revisa el largo del texto.',
+  red: 'No se pudo enviar por la conexión. Tu texto sigue aquí: vuelve a intentarlo.',
+};
+
+async function accion(fn, tarea = null, limpiar = []) {
+  if (ocupado) return false;
   ocupado = true;
   $app.querySelectorAll('button').forEach(b => (b.disabled = true));
   const r = await fn();
   ocupado = false;
-  if (r.error === 'sesion_invalida') return salir();
+  if (r.error === 'sesion_invalida') { salir(); return false; }
+  if (!r.error) limpiar.forEach(k => borradores.delete(k));
   await actualizar();
   render(true);
-  if (r.error) mostrarError(r.error);
+  if (r.error) {
+    const el = tarea && $app.querySelector(`[data-err="${tarea}"]`);
+    if (el) el.textContent = MENSAJES_ENTREGA[r.error] || mensaje(r.error);
+    else mostrarError(r.error);
+  }
+  return !r.error;
 }
 
 function enlazar() {
@@ -259,26 +276,31 @@ function enlazar() {
 
   // Entregas de «Mi equipo»
   const errTarea = (id, txt) => { const e = $app.querySelector(`[data-err="${id}"]`); if (e) e.textContent = txt; };
+  $app.querySelectorAll('[data-borrador]').forEach(el => (el.oninput = () => borradores.set(el.dataset.borrador, el.value)));
+  // Mientras el selector de fotos o la cámara están abiertos, el sondeo no reemplaza la página.
+  $app.querySelectorAll('.archivo').forEach(l => (l.onclick = () => { eligiendoFoto = true; }));
   $app.querySelectorAll('[data-foto]').forEach(inp => (inp.onchange = async () => {
     const id = inp.dataset.foto, archivo = inp.files && inp.files[0];
-    if (!archivo) return;
+    if (!archivo) { eligiendoFoto = false; return; }
+    if (ocupado) { eligiendoFoto = false; return errTarea(id, 'Espera a que termine la otra subida.'); }
     const nota = ($app.querySelector(`[data-nota="${id}"]`) || {}).value || null;
     errTarea(id, 'Preparando la foto…');
     let foto;
-    try { foto = await reducirFoto(archivo); } catch { return errTarea(id, 'No se pudo leer esa imagen. Prueba con otra.'); }
+    try { foto = await reducirFoto(archivo); } catch { eligiendoFoto = false; return errTarea(id, 'No se pudo leer esa imagen. Prueba con otra.'); }
     errTarea(id, 'Subiendo…');
-    accion(() => api.entregar(token, id, nota, null, foto));
+    eligiendoFoto = false;
+    accion(() => api.entregar(token, id, nota, null, foto), id, [`nota-${id}`]);
   }));
   $app.querySelectorAll('[data-enviar]').forEach(b => (b.onclick = () => {
     const id = b.dataset.enviar, t = $app.querySelector(`[data-texto="${id}"]`).value.trim();
     if (t.length < 10) return errTarea(id, 'Escribe al menos 10 caracteres.');
-    accion(() => api.entregar(token, id, t));
+    accion(() => api.entregar(token, id, t), id, [`texto-${id}`]);
   }));
   $app.querySelectorAll('[data-checkin]').forEach(b => (b.onclick = () => {
     const id = b.dataset.checkin;
     const u1 = $app.querySelector(`[data-uso1="${id}"]`).value.trim(), u2 = $app.querySelector(`[data-uso2="${id}"]`).value.trim();
     if (u1.length < 10 || u2.length < 10) return errTarea(id, 'Cuenta los dos usos, con al menos 10 caracteres cada uno.');
-    accion(() => api.entregar(token, id, u1, u2));
+    accion(() => api.entregar(token, id, u1, u2), id, [`uso1-${id}`, `uso2-${id}`]);
   }));
 }
 
@@ -306,6 +328,10 @@ $tabs.onclick = (ev) => {
   if (st) render(true);
   window.scrollTo(0, 0);
 };
+
+// Si la persona cancela el selector de fotos no llega «change»: al volver a la página se libera.
+window.addEventListener('focus', () => setTimeout(() => { eligiendoFoto = false; }, 1500));
+document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(() => { eligiendoFoto = false; }, 1500); });
 
 async function arrancar() {
   sondeo = cadaTanto(async () => { await actualizar(); if (st && token) render(); }, 3000);

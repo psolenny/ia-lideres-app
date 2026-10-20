@@ -50,8 +50,9 @@ export function crearApi({ url, anonKey, timeoutMs = 9000 }, fetcher = globalThi
     salirEquipo: (token) => rpc('salir_equipo', { p_token: token }),
     pantalla: (sede) => rpc('pantalla', { p_sede: sede }),
     // Una foto puede tardar más en subir con mal wifi: 30 s. Reintentar es seguro (reemplaza la entrega pendiente).
-    entregar: (token, actividad, texto = null, texto2 = null, foto = null) =>
-      rpc('entregar', { p_token: token, p_actividad: actividad, p_texto: texto, p_texto2: texto2, p_foto: foto }, foto ? 30000 : timeoutMs),
+    entregar: (token, actividad, texto = null, texto2 = null, foto = null) => foto
+      ? rpc('entregar', { p_token: token, p_actividad: actividad, p_texto: texto, p_texto2: texto2, p_foto: foto }, 30000)
+      : conReintento('entregar', { p_token: token, p_actividad: actividad, p_texto: texto, p_texto2: texto2, p_foto: null }, 2),
     f: {
       estado: (token, sede) => rpc('f_estado', { p_token: token, p_sede: sede }),
       actividad: (token, sede, actividad, estado) => rpc('f_actividad', { p_token: token, p_sede: sede, p_actividad: actividad, p_estado: estado }),
@@ -64,7 +65,8 @@ export function crearApi({ url, anonKey, timeoutMs = 9000 }, fetcher = globalThi
       borrarPersona: (token, persona) => rpc('f_borrar_persona', { p_token: token, p_persona: persona }),
       entregas: (token, sede) => rpc('f_entregas', { p_token: token, p_sede: sede }),
       foto: (token, entrega) => rpc('f_foto', { p_token: token, p_entrega: entrega }, 30000),
-      revisar: (token, entrega, estado, motivo = null) => rpc('f_revisar', { p_token: token, p_entrega: entrega, p_estado: estado, p_motivo: motivo }),
+      // actualizado = la versión de la entrega que la facilitadora vio.
+      revisar: (token, entrega, estado, motivo, actualizado) => rpc('f_revisar', { p_token: token, p_entrega: entrega, p_estado: estado, p_motivo: motivo, p_actualizado: actualizado }),
     },
   };
 }

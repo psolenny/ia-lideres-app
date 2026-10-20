@@ -33,14 +33,13 @@ begin
     if length(coalesce(v_texto, '')) < 10 or length(coalesce(v_texto2, '')) < 10
        or length(v_texto) > 300 or length(v_texto2) > 300 then raise exception 'texto_invalido'; end if;
     -- Personal y editable mientras esté abierto; no necesita aprobación.
-    select * into en from entregas where actividad_id = a.id and persona_id = p.id and equipo_id is null for update;
-    if found then
-      update entregas set texto = v_texto, texto2 = v_texto2, foto = coalesce(p_foto, foto), actualizado = now()
-        where id = en.id returning * into en;
-    else
-      insert into entregas (sede, actividad_id, persona_id, texto, texto2, foto, estado)
-        values (p.sede, a.id, p.id, v_texto, v_texto2, p_foto, 'aprobado') returning * into en;
-    end if;
+    -- Un solo paso: dos envíos simultáneos (doble toque o reintento) no chocan.
+    insert into entregas (sede, actividad_id, persona_id, texto, texto2, foto, estado)
+      values (p.sede, a.id, p.id, v_texto, v_texto2, p_foto, 'aprobado')
+    on conflict (actividad_id, persona_id) where equipo_id is null
+      do update set texto = excluded.texto, texto2 = excluded.texto2, foto = coalesce(excluded.foto, entregas.foto),
+                    estado = 'aprobado', actualizado = now()
+    returning * into en;
     return entrega_json(en);
   end if;
 
@@ -97,17 +96,24 @@ begin
   return json_build_object('foto', v);
 end $$;
 
-create or replace function f_revisar(p_token uuid, p_entrega uuid, p_estado text, p_motivo text) returns json
+drop function if exists f_revisar(uuid, uuid, text, text);
+-- p_actualizado = la versión que la facilitadora vio. Si el equipo la reemplazó después, no se aprueba a ciegas.
+create or replace function f_revisar(p_token uuid, p_entrega uuid, p_estado text, p_motivo text, p_actualizado timestamptz) returns json
 language plpgsql security definer set search_path = public as $$
+declare en entregas; v_tipo text;
 begin
   perform facilitadora(p_token);
   if p_estado not in ('pendiente', 'aprobado', 'rechazado') then raise exception 'estado_invalido'; end if;
+  select * into en from entregas where id = p_entrega for update;
+  if not found then raise exception 'entrega_no_existe'; end if;
+  select tipo into v_tipo from actividades where id = en.actividad_id;
+  if v_tipo = 'checkin' then raise exception 'no_revisable'; end if;
+  if p_actualizado is null or en.actualizado <> p_actualizado then raise exception 'entrega_cambio'; end if;
   update entregas set estado = p_estado, motivo = case when p_estado = 'rechazado' then left(nullif(trim(coalesce(p_motivo, '')), ''), 200) end
     where id = p_entrega;
-  if not found then raise exception 'entrega_no_existe'; end if;
   return json_build_object('ok', true);
 end $$;
 
 grant execute on function f_entregas(uuid, text) to anon;
 grant execute on function f_foto(uuid, uuid) to anon;
-grant execute on function f_revisar(uuid, uuid, text, text) to anon;
+grant execute on function f_revisar(uuid, uuid, text, text, timestamptz) to anon;
