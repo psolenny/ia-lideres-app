@@ -40,10 +40,28 @@ begin
         'puntos', (select coalesce(sum(r.puntos), 0) from respuestas r where r.persona_id = pe.id)
           + (select coalesce(sum(a2.puntos), 0) from entregas en join actividades a2 on a2.id = en.actividad_id
              where en.persona_id = pe.id and en.equipo_id is null and en.estado = 'aprobado')
+          + (select coalesce(sum(b.puntos), 0) from bonos b where b.persona_id = pe.id)
       ) order by pe.nombre, pe.apellido) from personas pe where pe.sede = p_sede), '[]'::json),
     'equipos', coalesce((select json_agg(json_build_object(
         'id', e.id, 'nombre', e.nombre, 'cupo_max', e.cupo_max, 'excepcion', e.excepcion
-      ) order by e.creado) from equipos e where e.sede = p_sede), '[]'::json));
+      ) order by e.creado) from equipos e where e.sede = p_sede), '[]'::json),
+    -- Puntos adicionales otorgados, los más recientes primero.
+    'bonos', coalesce((select json_agg(json_build_object(
+        'id', b.id, 'puntos', b.puntos, 'motivo', b.motivo, 'creado', b.creado,
+        'persona_id', b.persona_id, 'equipo_id', b.equipo_id,
+        'destino', coalesce((select nombre_corto(x.nombre, x.apellido) from personas x where x.id = b.persona_id),
+                            (select e.nombre from equipos e where e.id = b.equipo_id))
+      ) order by b.creado desc) from bonos b where b.sede = p_sede), '[]'::json),
+    -- Ranking con desglose, para la pestaña Marcador del panel.
+    'ranking', json_build_object(
+      'personas', coalesce((select json_agg(json_build_object(
+          'id', t.id, 'nombre', t.nombre, 'equipo_id', t.equipo_id, 'puntos', t.puntos, 'puesto', t.puesto,
+          'bonos', bonos_persona(t.id)) order by t.puesto, t.nombre)
+        from (select pp.*, rank() over (order by pp.puntos desc)::int as puesto from puntos_personas(p_sede) pp) t), '[]'::json),
+      'equipos', coalesce((select json_agg(json_build_object(
+          'id', t.id, 'nombre', t.nombre, 'puntos', t.puntos, 'puesto', t.puesto, 'miembros', t.miembros,
+          'bonos', bonos_equipo(t.id)) order by t.puesto, t.nombre)
+        from (select pe.*, rank() over (order by pe.puntos desc)::int as puesto from puntos_equipos(p_sede) pe) t), '[]'::json)));
 end $$;
 
 create or replace function f_actividad(p_token uuid, p_sede text, p_actividad text, p_estado text) returns json

@@ -64,6 +64,8 @@ export function crearApi({ url, anonKey, timeoutMs = 9000 }, fetcher = globalThi
       registrar: (token, sede, nombre, apellido, correo, pin) => rpc('f_registrar', { p_token: token, p_sede: sede, p_nombre: nombre, p_apellido: apellido, p_correo: correo, p_pin: pin }),
       borrarPersona: (token, persona) => rpc('f_borrar_persona', { p_token: token, p_persona: persona }),
       entregas: (token, sede) => rpc('f_entregas', { p_token: token, p_sede: sede }),
+      bono: (token, persona, equipo, puntos, motivo) => rpc('f_bono', { p_token: token, p_persona: persona, p_equipo: equipo, p_puntos: puntos, p_motivo: motivo }),
+      quitarBono: (token, bono) => rpc('f_quitar_bono', { p_token: token, p_bono: bono }),
       foto: (token, entrega) => rpc('f_foto', { p_token: token, p_entrega: entrega }, 30000),
       // actualizado = la versión de la entrega que la facilitadora vio.
       revisar: (token, entrega, estado, motivo, actualizado) => rpc('f_revisar', { p_token: token, p_entrega: entrega, p_estado: estado, p_motivo: motivo, p_actualizado: actualizado }),

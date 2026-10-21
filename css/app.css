@@ -183,3 +183,15 @@ p.sub { color: var(--gris); margin: 0 0 16px; line-height: 1.45; }
 .entrega { border: 2px solid var(--linea); border-radius: var(--radio); padding: 12px; margin-bottom: 10px; }
 .entrega.pendiente { border-color: var(--rosa); }
 .entrega .cab { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+/* ---------- Panel: marcador y puntos extra ---------- */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.h-sec{font-size:1.05rem;margin:0 0 8px;color:var(--azul)}
+.h-sec small{color:var(--gris);font-weight:400;font-size:.85rem}
+.tabla.rk td.pos{font-family:ui-monospace,Menlo,monospace;color:var(--gris);width:2.2em}
+.tabla.rk td.pt,.tabla td.pt{font-weight:700;color:var(--azul);text-align:right}
+.tabla.rk tr.top td{background:#fdeef5}
+.tabla.rk tr.top td.pos{color:var(--rosa);font-weight:700}
+.mini.bono{border-color:var(--rosa);color:var(--rosa)}
+.mini.bono:hover{background:var(--rosa);color:#fff}

@@ -64,6 +64,10 @@ export const MENSAJES = {
   entrega_no_existe: 'Esa entrega ya no existe',
   entrega_cambio: 'El equipo cambió esta entrega. Revísala de nuevo',
   no_revisable: 'El check-in no necesita revisión',
+  destino_invalido: 'Elige una persona o un equipo',
+  puntos_invalidos: 'Los puntos deben ser un número distinto de 0 (hasta 1000)',
+  motivo_invalido: 'Escribe un motivo corto (3 a 80 caracteres)',
+  bono_no_existe: 'Ese bono ya no existe',
 };
 
 export function mensaje(codigo) {

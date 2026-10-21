@@ -14,7 +14,9 @@ language sql stable set search_path = public as $$
     (coalesce((select sum(r.puntos) from respuestas r where r.persona_id = pe.id), 0)
      -- check-in entregado (personal)
      + coalesce((select sum(a.puntos) from entregas en join actividades a on a.id = en.actividad_id
-                 where en.persona_id = pe.id and en.equipo_id is null and en.estado = 'aprobado'), 0))::int
+                 where en.persona_id = pe.id and en.equipo_id is null and en.estado = 'aprobado'), 0)
+     -- puntos adicionales otorgados por la facilitadora
+     + coalesce((select sum(b.puntos) from bonos b where b.persona_id = pe.id), 0))::int
   from personas pe
   where pe.sede = p_sede and not pe.es_facilitadora;
 $$;
@@ -38,6 +40,8 @@ language sql stable set search_path = public as $$
              and not exists (select 1 from miembros m where not exists (
                select 1 from entregas en where en.actividad_id = a.id and en.persona_id = m.id
                  and en.equipo_id is null and en.estado = 'aprobado')))
+    -- puntos adicionales otorgados al equipo por la facilitadora
+    + coalesce((select sum(b.puntos) from bonos b where b.equipo_id = p_equipo), 0)
   )::int;
 $$;
 revoke execute on function puntos_de_equipo(uuid) from public, anon, authenticated;
@@ -81,7 +85,8 @@ begin
   -- Mismo cálculo que el ranking (respuestas + check-in).
   v_puntos := coalesce((select sum(rr.puntos) from respuestas rr where rr.persona_id = p.id), 0)
     + coalesce((select sum(a2.puntos) from entregas en join actividades a2 on a2.id = en.actividad_id
-                where en.persona_id = p.id and en.equipo_id is null and en.estado = 'aprobado'), 0);
+                where en.persona_id = p.id and en.equipo_id is null and en.estado = 'aprobado'), 0)
+    + coalesce((select sum(b.puntos) from bonos b where b.persona_id = p.id), 0);
 
   if p.equipo_id is not null then
     select json_build_object('id', eq.id, 'nombre', eq.nombre,

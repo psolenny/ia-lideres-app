@@ -65,7 +65,7 @@ function barra() {
     <select id="sede">${Object.entries(SEDES).map(([k, v]) => `<option value="${k}" ${k === sede ? 'selected' : ''}>${v}</option>`).join('')}</select>
     <a class="mini" href="${base}pantalla.html?sede=${sede}" target="_blank" rel="noopener">Abrir pantalla ↗</a>
     <div class="tabs" role="tablist">
-      ${[['vivo', 'En vivo'], ['equipos', 'Equipos'], ['entregas', `Entregas${pendientes() ? ` (${pendientes()} por revisar)` : ''}`], ['personas', `Personas (${st ? st.personas.filter(x => !x.es_facilitadora).length : 0})`]]
+      ${[['vivo', 'En vivo'], ['equipos', 'Equipos'], ['marcador', 'Marcador'], ['entregas', `Entregas${pendientes() ? ` (${pendientes()} por revisar)` : ''}`], ['personas', `Personas (${st ? st.personas.filter(x => !x.es_facilitadora).length : 0})`]]
         .map(([k, v]) => `<button data-tab="${k}" aria-selected="${tab === k}">${v}</button>`).join('')}
     </div>
   </div>`;
@@ -106,7 +106,7 @@ function vistaEquipos() {
         const cls = e.excepcion ? 'excepcion' : (miembros.length < 2 ? 'incompleto' : '');
         return `<div class="tarjeta-eq ${cls}"><h4><span>${h(e.nombre)}</span><small>${miembros.length}/${e.cupo_max}</small></h4>
           <ul>${miembros.map(fila).join('') || '<li><small>vacío</small></li>'}</ul>
-          <button class="mini" data-excepcion="${e.id}" data-activa="${!e.excepcion}">${e.excepcion ? 'Quitar excepción' : 'Excepción (1 o 5)'}</button>
+          <button class="mini" data-excepcion="${e.id}" data-activa="${!e.excepcion}">${e.excepcion ? 'Quitar excepción' : 'Excepción (1 o 5)'}</button> ${btnBono('equipo', e.id, e.nombre)}
           ${miembros.length < 2 && !e.excepcion ? '<small> · incompleto</small>' : ''}</div>`;
       }).join('')}
       <div class="tarjeta-eq"><h4><span>Sin equipo</span><small>${sin.length}</small></h4><ul>${sin.map(fila).join('') || '<li><small>nadie</small></li>'}</ul></div>
@@ -137,6 +137,31 @@ function vistaEntregas() {
     </div>`).join('') : '<p class="sub">No hay entregas en esta lista.</p>'}`;
 }
 
+// Botón de puntos extra: data-bono="persona:<id>" o "equipo:<id>", con el nombre para el diálogo.
+const btnBono = (tipo, id, nombre) => `<button class="mini bono" data-bono="${tipo}:${id}" data-nombre="${h(nombre)}" title="Otorgar puntos extra">+ pts</button>`;
+
+function vistaMarcador() {
+  const rk = st.ranking || { personas: [], equipos: [] };
+  const eqNombre = Object.fromEntries(st.equipos.map(e => [e.id, e.nombre]));
+  const fila = (x, top, extra) => `<tr class="${x.puesto <= top ? 'top' : ''}"><td class="pos">${x.puesto}</td><td>${h(x.nombre)}</td>${extra}<td class="pt">${x.puntos}</td><td>${x.bonos ? `<span class="nivel">+${x.bonos} extra</span>` : ''}</td><td>${btnBono(x.equipo_id !== undefined ? 'persona' : 'equipo', x.id, x.nombre)}</td></tr>`;
+  const bonos = st.bonos || [];
+  return `<div class="grid2">
+    <div><h2 class="h-sec">Equipos <small>· promedio de sus miembros + puntos de equipo</small></h2>
+      <table class="tabla rk"><thead><tr><th>#</th><th>Equipo</th><th>Miembros</th><th>Pts</th><th></th><th></th></tr></thead><tbody>
+        ${rk.equipos.map(e => fila(e, 2, `<td>${e.miembros}</td>`)).join('') || '<tr><td colspan="6"><small>Aún no hay equipos.</small></td></tr>'}
+      </tbody></table></div>
+    <div><h2 class="h-sec">Personas</h2>
+      <table class="tabla rk"><thead><tr><th>#</th><th>Nombre</th><th>Equipo</th><th>Pts</th><th></th><th></th></tr></thead><tbody>
+        ${rk.personas.map(p => fila(p, 3, `<td><small>${h(eqNombre[p.equipo_id] || '—')}</small></td>`)).join('') || '<tr><td colspan="6"><small>Aún no hay personas.</small></td></tr>'}
+      </tbody></table></div>
+  </div>
+  <h2 class="h-sec" style="margin-top:18px">Puntos extra otorgados <small>· ${bonos.length}</small></h2>
+  ${bonos.length ? `<table class="tabla"><thead><tr><th>Cuándo</th><th>A quién</th><th>Pts</th><th>Motivo</th><th></th></tr></thead><tbody>
+    ${bonos.map(b => `<tr><td><small>${new Date(b.creado).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}</small></td><td>${h(b.destino || '—')}${b.equipo_id ? ' <span class="nivel">equipo</span>' : ''}</td><td class="pt">${b.puntos > 0 ? '+' : ''}${b.puntos}</td><td>${h(b.motivo)}</td><td><button class="mini" data-quitar-bono="${b.id}">Quitar</button></td></tr>`).join('')}
+  </tbody></table>` : '<p class="sub">Todavía no has otorgado puntos extra. Usa «+ pts» en cualquier fila.</p>'}
+  <p class="nota" style="margin-top:10px">Los puntos extra a una persona suben también el promedio de su equipo. Los puntos extra a un equipo no cambian el ranking de personas. Para corregir, otorga puntos negativos o quita el bono.</p>`;
+}
+
 function vistaPersonas() {
   const q = busqueda.toLowerCase();
   const lista = st.personas.filter(x => !q || `${x.nombre} ${x.apellido} ${x.correo}`.toLowerCase().includes(q));
@@ -148,7 +173,7 @@ function vistaPersonas() {
     <table class="tabla"><thead><tr><th>Nombre</th><th>Correo</th><th>Equipo</th><th>Pts</th><th></th></tr></thead><tbody>
     ${lista.map(x => `<tr><td>${h(x.nombre)} ${h(x.apellido)}${x.es_facilitadora ? ' <span class="nivel">facilitadora</span>' : ''}${x.bloqueado ? ' <span class="estado abierta">bloqueado</span>' : ''}</td>
       <td><small>${h(x.correo)}</small></td><td>${h(eq[x.equipo_id] || '—')}</td><td>${x.puntos}</td>
-      <td class="acciones"><button data-pin="${x.id}" data-nombre="${h(x.nombre)}">Nuevo PIN</button>
+      <td class="acciones">${x.es_facilitadora ? '' : btnBono('persona', x.id, x.nombre + ' ' + x.apellido)}<button data-pin="${x.id}" data-nombre="${h(x.nombre)}">Nuevo PIN</button>
       ${x.es_facilitadora ? '' : `<button data-borrar="${x.id}" data-nombre="${h(x.nombre)} ${h(x.apellido)}">Borrar</button>`}</td></tr>`).join('')}
     </tbody></table>`;
 }
@@ -160,7 +185,7 @@ function render() {
   // No cerrar un selector de equipo que la facilitadora tiene abierto.
   if (activo && activo.tagName === 'SELECT' && activo.id !== 'sede' && $p.contains(activo)) return;
   const pos = activo && activo.id === 'buscar' ? activo.selectionStart : null;
-  const html = barra() + (tab === 'vivo' ? vistaVivo() : tab === 'equipos' ? vistaEquipos() : tab === 'entregas' ? vistaEntregas() : vistaPersonas());
+  const html = barra() + (tab === 'vivo' ? vistaVivo() : tab === 'equipos' ? vistaEquipos() : tab === 'marcador' ? vistaMarcador() : tab === 'entregas' ? vistaEntregas() : vistaPersonas());
   // Sin cambios no se redibuja: evita parpadeos y recargar fotos pesadas cada 3 s.
   if (html === ultimoHtml && pos === null) return;
   ultimoHtml = html;
@@ -195,6 +220,19 @@ function enlazar() {
     let motivo = null;
     if (b.dataset.estado === 'rechazado') { motivo = prompt('Motivo (opcional, lo verá el equipo):', ''); if (motivo === null) return; }
     hacer(api.f.revisar(token, b.dataset.revisar, b.dataset.estado, motivo, b.dataset.version), b.dataset.estado === 'aprobado' ? 'Aprobada' : 'Rechazada');
+  }));
+  $p.querySelectorAll('[data-bono]').forEach(b => (b.onclick = () => {
+    const [tipo, id] = b.dataset.bono.split(':');
+    const n = prompt(`Puntos extra para ${b.dataset.nombre} (negativo para restar):`, '50');
+    if (n === null) return;
+    const puntos = parseInt(n, 10);
+    if (!puntos) return toast(mensaje('puntos_invalidos'));
+    const motivo = prompt('Motivo (lo verás en la lista de puntos extra):', '');
+    if (motivo === null) return;
+    hacer(api.f.bono(token, tipo === 'persona' ? id : null, tipo === 'equipo' ? id : null, puntos, motivo.trim()), `${puntos > 0 ? '+' : ''}${puntos} pts a ${b.dataset.nombre}`);
+  }));
+  $p.querySelectorAll('[data-quitar-bono]').forEach(b => (b.onclick = () => {
+    if (confirm('¿Quitar estos puntos extra?')) hacer(api.f.quitarBono(token, b.dataset.quitarBono), 'Bono quitado');
   }));
   $p.querySelectorAll('[data-equipos]').forEach(b => (b.onclick = () => hacer(api.f.equipos(token, sede, b.dataset.equipos))));
   $p.querySelectorAll('[data-mover]').forEach(s => (s.onchange = () => { s.blur(); hacer(api.f.mover(token, s.dataset.mover, s.value || null), 'Movida'); }));

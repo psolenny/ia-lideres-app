@@ -2,6 +2,7 @@
 create or replace function prueba_reset() returns void
 language sql security definer set search_path = public as $$
   delete from respuestas where sede in ('prueba', 'prueba2');
+  delete from bonos where sede in ('prueba', 'prueba2');
   delete from sesiones where persona_id in (select id from personas where sede in ('prueba', 'prueba2'));
   update personas set equipo_id = null where sede in ('prueba', 'prueba2');
   delete from personas where sede in ('prueba', 'prueba2');
