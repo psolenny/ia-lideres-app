@@ -195,3 +195,13 @@ p.sub { color: var(--gris); margin: 0 0 16px; line-height: 1.45; }
 .tabla.rk tr.top td.pos{color:var(--rosa);font-weight:700}
 .mini.bono{border-color:var(--rosa);color:var(--rosa)}
 .mini.bono:hover{background:var(--rosa);color:#fff}
+
+/* Tarjetas de equipo del panel: nombre a la izquierda, selector compacto a la derecha */
+.grilla-equipos{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.tarjeta-eq li{display:grid;grid-template-columns:minmax(0,1fr) 132px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--linea)}
+.tarjeta-eq li:last-child{border-bottom:0}
+.tarjeta-eq li > span{min-width:0;overflow-wrap:anywhere;line-height:1.25}
+.tarjeta-eq li .nivel{display:inline-block;margin-top:2px}
+.tarjeta-eq select.mini{width:132px;max-width:132px;padding:4px 6px;font-size:.8rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tarjeta-eq h4{align-items:baseline}
+.tarjeta-eq > .mini,.tarjeta-eq > .mini.bono{margin-top:8px}
